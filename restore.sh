@@ -10,6 +10,7 @@ Usage:
   sudo ./restore.sh [--target /home/pi/sg1_v4] [--dry-run]
 
 Surgically removes only the SG1 Iris add-on hooks and managed assets.
+Moves the managed Iris Black Hole warning back to its original SG1 folder.
 Creates a timestamped pre-restore backup before making changes.
 EOF
 }
@@ -50,6 +51,33 @@ else
   exit 1
 fi
 
+find_sg1_root() {
+  local candidate="$RETRO_DIR"
+  while [ "$candidate" != "/" ]; do
+    if [ -d "$candidate/web/retro" ] &&
+      [ -d "$candidate/soundfx/milkyway/audio_clips" ]; then
+      SG1_ROOT="$candidate"
+      return
+    fi
+    candidate="$(dirname "$candidate")"
+  done
+  echo "Cannot find the SG1 soundfx folder above: $RETRO_DIR" >&2
+  exit 1
+}
+
+find_sg1_root
+IRIS_AUDIO_ROOT="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris"
+IRIS_AUDIO_DIR="$IRIS_AUDIO_ROOT/black_hole"
+IRIS_AUDIO_FILE="$IRIS_AUDIO_DIR/outgoing wormhole.wav"
+IRIS_AUDIO_MARKER="$IRIS_AUDIO_DIR/.sg1-iris-managed"
+BLACK_HOLE_SOURCE_DIR="$SG1_ROOT/soundfx/milkyway/audio_clips/black_hole"
+BLACK_HOLE_SOURCE="$BLACK_HOLE_SOURCE_DIR/outgoing wormhole.wav"
+
+if [ -f "$IRIS_AUDIO_MARKER" ] && [ -f "$IRIS_AUDIO_FILE" ] && [ -e "$BLACK_HOLE_SOURCE" ]; then
+  echo "Refusing to overwrite existing original audio file: $BLACK_HOLE_SOURCE" >&2
+  exit 1
+fi
+
 for file in "$RETRO_DIR/dial.html" "$RETRO_DIR/dial9.html" "$RETRO_DIR/js/dial.js"; do
   if [ ! -f "$file" ]; then
     echo "Missing required file: $file" >&2
@@ -76,6 +104,28 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$SCRIPT_DIR/remove_iris.py" "$RETRO_DIR" "$DRY_RUN"
+
+if [ -f "$IRIS_AUDIO_MARKER" ]; then
+  if [ "$DRY_RUN" -eq 1 ]; then
+    if [ -f "$IRIS_AUDIO_FILE" ]; then
+      echo "would move managed Iris audio back:"
+      echo "  from: $IRIS_AUDIO_FILE"
+      echo "  to:   $BLACK_HOLE_SOURCE"
+    fi
+    echo "would remove managed Iris audio marker: $IRIS_AUDIO_MARKER"
+  else
+    if [ -f "$IRIS_AUDIO_FILE" ]; then
+      mkdir -p "$BLACK_HOLE_SOURCE_DIR"
+      mv "$IRIS_AUDIO_FILE" "$BLACK_HOLE_SOURCE"
+      echo "restored original Black Hole warning: $BLACK_HOLE_SOURCE"
+    fi
+    rm "$IRIS_AUDIO_MARKER"
+    rmdir "$IRIS_AUDIO_DIR" 2>/dev/null || true
+    rmdir "$IRIS_AUDIO_ROOT" 2>/dev/null || true
+  fi
+elif [ -e "$IRIS_AUDIO_FILE" ]; then
+  echo "preserving unmanaged audio file: $IRIS_AUDIO_FILE"
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "Dry run completed. No files were changed."
