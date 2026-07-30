@@ -15,7 +15,7 @@ closed while the incoming status remains active.
 
 ## Install
 
-Clone or unzip this add-on into `/home/pi`, then run:
+SSH into the Raspberry Pi and run the full install block:
 
 ```bash
 cd /home/pi
@@ -25,11 +25,21 @@ cd SG1-Iris
 chmod +x install.sh restore.sh
 sudo ./install.sh --target /home/pi/sg1_v4
 sudo systemctl restart stargate.service
+systemctl status stargate.service --no-pager -l
 ```
 
 After installation, refresh the Retro page without cache. Use the
 `CLOSE IRIS` / `OPEN IRIS` control in the Retro navigation menu, or press
 `Ctrl+I`.
+
+Quick browser test:
+
+```text
+http://stargate.local/retro/dial.html
+```
+
+If your gate uses a different local name or IP address, open the same Retro path
+on that address instead.
 
 ## Dry run
 
