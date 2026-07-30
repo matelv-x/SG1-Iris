@@ -5,6 +5,8 @@ const DURATION = 1100;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
+const BLACK_HOLE_GATE_NAME = 'P3W-451';
+const BLACK_HOLE_GATE_ADDRESS = '19-8-4-37-26-16';
 const STATUS_ENDPOINTS = [
   '/stargate/get/dialing_status',
   '/get/dialing_status',
@@ -560,6 +562,27 @@ function toggle() {
   setClosed(!targetClosed);
 }
 
+function selectedAddress() {
+  const rawAddress = new URLSearchParams(window.location.search).get('address');
+  if (!rawAddress) return '';
+
+  return rawAddress
+    .split('-')
+    .map(glyph => Number.parseInt(glyph, 10))
+    .filter(Number.isFinite)
+    .join('-');
+}
+
+function closeForSelectedBlackHole() {
+  if (selectedAddress() !== BLACK_HOLE_GATE_ADDRESS) return;
+
+  autoClosed = false;
+  manualOpenDuringIncoming = false;
+  localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
+  document.documentElement.classList.add('iris-black-hole');
+  setClosed(true);
+}
+
 function syncGateStatus(status) {
   if (!status || typeof status !== 'object') return;
 
@@ -568,6 +591,12 @@ function syncGateStatus(status) {
     : [];
   const lockedIncoming = Number(status.locked_chevrons_incoming) || 0;
   const wormholeActive = String(status.wormhole_active || '').toLowerCase();
+  const connectedPlanet = String(status.connected_planet || '')
+    .trim()
+    .toUpperCase();
+  const blackHoleConnected =
+    Boolean(status.black_hole_connected)
+    || connectedPlanet === BLACK_HOLE_GATE_NAME;
   const incoming =
     wormholeActive === 'incoming'
     || incomingAddress.length > 0
@@ -579,6 +608,21 @@ function syncGateStatus(status) {
     && lockedIncoming === 0;
 
   document.documentElement.classList.toggle('iris-incoming', incoming);
+  document.documentElement.classList.toggle(
+    'iris-black-hole',
+    blackHoleConnected,
+  );
+
+  // Selecting P3W-451 closes the iris immediately from the URL hook above.
+  // Once its black-hole status reaches the gate API, keep the iris protected
+  // even if another control attempts to open it during the active connection.
+  if (blackHoleConnected) {
+    autoClosed = false;
+    manualOpenDuringIncoming = false;
+    localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
+    if (!targetClosed) setClosed(true);
+    return;
+  }
 
   // Incoming always wins over a manual open command. The iris owns this check
   // instead of relying on Retro dial.js, so it works on every installed gate.
@@ -673,6 +717,7 @@ function initialize() {
     syncGateStatus,
   });
 
+  closeForSelectedBlackHole();
   startStatusPolling();
 }
 
