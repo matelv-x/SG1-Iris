@@ -24,6 +24,7 @@ folder into:
 ```text
 /home/pi/sg1_v4/soundfx/milkyway/audio_clips/Iris/black_hole/outgoing wormhole.wav
 ```
+<img width="3600" height="1200" alt="image" src="https://github.com/user-attachments/assets/ebd6adc2-a4df-4f60-b67a-c6612f3597cb" />
 
 ## Requirements
 
