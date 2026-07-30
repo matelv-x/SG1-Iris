@@ -8,8 +8,8 @@ During closing and opening it pauses for one second at the same two-thirds
 position, immediately before the central plume appears or disappears.
 Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
-Selecting `P3W-451 (Black Hole)` from the address book also closes the iris
-automatically. The active black-hole status keeps it closed for protection.
+After a connection to `P3W-451 (Black Hole)` is established, SG1 Iris plays
+`outgoing wormhole.wav` once at five seconds and starts closing at ten seconds.
 
 ## Requirements
 
@@ -66,10 +66,10 @@ sudo systemctl restart stargate.service
 - Injects only marked stylesheet and script hooks into `dial.html` and
   `dial9.html`.
 - Reads the SG1 gate status directly from the web API, so the iris can
-  automatically close on incoming and an active black-hole connection without
+  automatically close on incoming and react to a black-hole connection without
   depending on a `dial.js` hook.
-- Recognizes the `P3W-451` address directly when it is selected from the Retro
-  address book and starts closing before the wormhole is established.
+- Uses SG1 v4's native `/stargate/do/audio_play` command for the one-time Black
+  Hole warning, without replacing or reconfiguring the native audio system.
 - Removes the old marked Iris hook from `web/retro/js/dial.js` when upgrading
   from an earlier SG1 Iris version.
 - Preserves the existing rings, glyphs, chevrons and other installed add-ons.
@@ -100,9 +100,10 @@ Incoming calls close the iris automatically. If you manually open the iris
 during the same incoming wormhole, the add-on respects that manual override
 until the gate returns to idle. The next incoming call will close it again.
 
-Selecting `P3W-451 (Black Hole)` closes the iris immediately. While the gate
-reports an active black-hole connection, opening commands are overridden and
-the iris remains closed.
+Selecting `P3W-451 (Black Hole)` does not close the iris during dialing. Once
+the connection is established, the dedicated `outgoing wormhole.wav` warning
+plays once after five seconds and the iris starts closing after ten seconds.
+If the connection ends before either action, the pending action is cancelled.
 
 JavaScript API:
 

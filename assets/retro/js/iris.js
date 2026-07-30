@@ -6,7 +6,10 @@ const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
 const BLACK_HOLE_GATE_NAME = 'P3W-451';
-const BLACK_HOLE_GATE_ADDRESS = '19-8-4-37-26-16';
+const BLACK_HOLE_AUDIO_DELAY_MS = 5000;
+const BLACK_HOLE_CLOSE_DELAY_MS = 10000;
+const BLACK_HOLE_WARNING_CLIP =
+  '/audio_clips/black_hole/outgoing wormhole.wav';
 const STATUS_ENDPOINTS = [
   '/stargate/get/dialing_status',
   '/get/dialing_status',
@@ -31,6 +34,9 @@ let manualOpenDuringIncoming = false;
 let statusPolling = false;
 let statusEndpointIndex = 0;
 let statusTimer = null;
+let blackHoleConnectionId = null;
+let blackHoleAudioTimer = null;
+let blackHoleCloseTimer = null;
 const cyclicLayers = [];
 
 function polar(radius, angle) {
@@ -562,25 +568,62 @@ function toggle() {
   setClosed(!targetClosed);
 }
 
-function selectedAddress() {
-  const rawAddress = new URLSearchParams(window.location.search).get('address');
-  if (!rawAddress) return '';
-
-  return rawAddress
-    .split('-')
-    .map(glyph => Number.parseInt(glyph, 10))
-    .filter(Number.isFinite)
-    .join('-');
+function clearBlackHoleSequence() {
+  clearTimeout(blackHoleAudioTimer);
+  clearTimeout(blackHoleCloseTimer);
+  blackHoleAudioTimer = null;
+  blackHoleCloseTimer = null;
+  blackHoleConnectionId = null;
 }
 
-function closeForSelectedBlackHole() {
-  if (selectedAddress() !== BLACK_HOLE_GATE_ADDRESS) return;
+async function playBlackHoleWarning() {
+  try {
+    const response = await fetch('/stargate/do/audio_play', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({clip: BLACK_HOLE_WARNING_CLIP}),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    console.debug('[sg1-iris] Black Hole warning audio failed', error);
+  }
+}
 
+function blackHoleElapsedMs(status) {
+  const openedAtSeconds = Number(status.wormhole_open_time);
+  if (!Number.isFinite(openedAtSeconds) || openedAtSeconds <= 0) return 0;
+
+  const elapsed = Date.now() - openedAtSeconds * 1000;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
+}
+
+function scheduleBlackHoleSequence(status) {
+  const connectionId = String(status.wormhole_open_time || 'active');
+  if (blackHoleConnectionId === connectionId) return;
+
+  clearBlackHoleSequence();
+  blackHoleConnectionId = connectionId;
   autoClosed = false;
   manualOpenDuringIncoming = false;
   localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
-  document.documentElement.classList.add('iris-black-hole');
-  setClosed(true);
+
+  const elapsed = blackHoleElapsedMs(status);
+  const audioDelay = BLACK_HOLE_AUDIO_DELAY_MS - elapsed;
+  const closeDelay = BLACK_HOLE_CLOSE_DELAY_MS - elapsed;
+
+  // The warning belongs only to this Black Hole event. If the page joins the
+  // connection after its five-second cue has already passed, do not replay it.
+  if (audioDelay > 0) {
+    blackHoleAudioTimer = setTimeout(() => {
+      blackHoleAudioTimer = null;
+      playBlackHoleWarning();
+    }, audioDelay);
+  }
+
+  blackHoleCloseTimer = setTimeout(() => {
+    blackHoleCloseTimer = null;
+    setClosed(true);
+  }, Math.max(0, closeDelay));
 }
 
 function syncGateStatus(status) {
@@ -595,8 +638,11 @@ function syncGateStatus(status) {
     .trim()
     .toUpperCase();
   const blackHoleConnected =
-    Boolean(status.black_hole_connected)
-    || connectedPlanet === BLACK_HOLE_GATE_NAME;
+    Boolean(status.wormhole_active)
+    && (
+      Boolean(status.black_hole_connected)
+      || connectedPlanet === BLACK_HOLE_GATE_NAME
+    );
   const incoming =
     wormholeActive === 'incoming'
     || incomingAddress.length > 0
@@ -613,15 +659,14 @@ function syncGateStatus(status) {
     blackHoleConnected,
   );
 
-  // Selecting P3W-451 closes the iris immediately from the URL hook above.
-  // Once its black-hole status reaches the gate API, keep the iris protected
-  // even if another control attempts to open it during the active connection.
+  // P3W-451 gets one dedicated warning five seconds after the connection is
+  // established, followed by the Iris close command at ten seconds. The clip
+  // is played through SG1's native audio API and does not replace its player.
   if (blackHoleConnected) {
-    autoClosed = false;
-    manualOpenDuringIncoming = false;
-    localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
-    if (!targetClosed) setClosed(true);
+    scheduleBlackHoleSequence(status);
     return;
+  } else if (blackHoleConnectionId !== null) {
+    clearBlackHoleSequence();
   }
 
   // Incoming always wins over a manual open command. The iris owns this check
@@ -717,7 +762,6 @@ function initialize() {
     syncGateStatus,
   });
 
-  closeForSelectedBlackHole();
   startStatusPolling();
 }
 
