@@ -9,7 +9,10 @@ position, immediately before the central plume appears or disappears.
 Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
 After a connection to `P3W-451 (Black Hole)` is established, SG1 Iris plays
-`outgoing wormhole.wav` once at five seconds and starts closing at ten seconds.
+`outgoing wormhole.wav` once in the browser at thirty-five seconds and starts closing
+at forty-five seconds.
+The clip lasts about 7.87 seconds, so it finishes around 42.87 seconds and
+leaves roughly 2.13 seconds before the iris begins moving.
 The installer moves this dedicated clip from SG1's original Black Hole audio
 folder into:
 
@@ -74,8 +77,13 @@ sudo systemctl restart stargate.service
 - Reads the SG1 gate status directly from the web API, so the iris can
   automatically close on incoming and react to a black-hole connection without
   depending on a `dial.js` hook.
-- Uses SG1 v4's native `/stargate/do/audio_play` command for the one-time Black
-  Hole warning, without replacing or reconfiguring the native audio system.
+- Plays the one-time Black Hole warning directly in the active Retro browser,
+  which supports web-only Fan Gate and Land of Light pages without speakers
+  connected to the SG1 backend.
+- Uses an isolated, one-shot audio object and then returns to SG1 v4's normal
+  browser audio handling without replacing or reconfiguring it.
+- Preloads the warning as soon as the Black Hole connection is established so
+  network latency does not consume its safety gap before closure.
 - Moves the warning out of the general Black Hole clip folder into the marked,
   managed `soundfx/milkyway/audio_clips/Iris/black_hole` folder so it belongs
   only to this Iris event.
@@ -113,7 +121,8 @@ until the gate returns to idle. The next incoming call will close it again.
 
 Selecting `P3W-451 (Black Hole)` does not close the iris during dialing. Once
 the connection is established, the dedicated `outgoing wormhole.wav` warning
-plays once after five seconds and the iris starts closing after ten seconds.
+plays once after thirty-five seconds and the iris starts closing after forty-five
+seconds.
 If the connection ends before either action, the pending action is cancelled.
 
 JavaScript API:
