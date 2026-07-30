@@ -4,8 +4,8 @@ Animated titanium iris add-on for the StargateProject SG1 v4 Retro interface.
 
 The iris uses 22 curved blades, closes with a symmetrical overlapping plume,
 and retracts completely below the existing inner Stargate ring when open.
-During closing it pauses for one second at two-thirds travel, immediately
-before the central plume appears, then completes the closure.
+During closing and opening it pauses for one second at the same two-thirds
+position, immediately before the central plume appears or disappears.
 Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
 

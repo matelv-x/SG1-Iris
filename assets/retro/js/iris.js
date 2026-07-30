@@ -491,11 +491,17 @@ function setClosed(closed) {
   const pauseAt = 2 / 3;
   const pauseDuration = 1000;
   const pauseOnClosing = targetClosed && start < pauseAt;
-  const firstStageDistance = pauseOnClosing ? pauseAt - start : 0;
-  const firstStageDuration = pauseOnClosing
+  const pauseOnOpening = !targetClosed && start > pauseAt;
+  const pauseDuringTransition = pauseOnClosing || pauseOnOpening;
+  const firstStageDistance = pauseOnClosing
+    ? pauseAt - start
+    : pauseOnOpening
+      ? start - pauseAt
+      : 0;
+  const firstStageDuration = pauseDuringTransition
     ? duration * (firstStageDistance / distance)
     : 0;
-  const finalStageDuration = pauseOnClosing
+  const finalStageDuration = pauseDuringTransition
     ? duration - firstStageDuration
     : 0;
 
@@ -505,15 +511,15 @@ function setClosed(closed) {
     const elapsedMs = now - startedAt;
     let finished = false;
 
-    if (pauseOnClosing && elapsedMs < firstStageDuration) {
+    if (pauseDuringTransition && elapsedMs < firstStageDuration) {
       const stageProgress = elapsedMs / firstStageDuration;
       progress = mix(start, pauseAt, easeInOutCubic(stageProgress));
     } else if (
-      pauseOnClosing &&
+      pauseDuringTransition &&
       elapsedMs < firstStageDuration + pauseDuration
     ) {
       progress = pauseAt;
-    } else if (pauseOnClosing) {
+    } else if (pauseDuringTransition) {
       const stageProgress = Math.min(
         1,
         (elapsedMs - firstStageDuration - pauseDuration) /
