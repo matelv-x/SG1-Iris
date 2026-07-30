@@ -10,6 +10,12 @@ Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
 After a connection to `P3W-451 (Black Hole)` is established, SG1 Iris plays
 `outgoing wormhole.wav` once at five seconds and starts closing at ten seconds.
+The installer moves this dedicated clip from SG1's original Black Hole audio
+folder into:
+
+```text
+/home/pi/sg1_v4/soundfx/milkyway/audio_clips/Iris/black_hole/outgoing wormhole.wav
+```
 
 ## Requirements
 
@@ -70,11 +76,16 @@ sudo systemctl restart stargate.service
   depending on a `dial.js` hook.
 - Uses SG1 v4's native `/stargate/do/audio_play` command for the one-time Black
   Hole warning, without replacing or reconfiguring the native audio system.
+- Moves the warning out of the general Black Hole clip folder into the marked,
+  managed `soundfx/milkyway/audio_clips/Iris/black_hole` folder so it belongs
+  only to this Iris event.
 - Removes the old marked Iris hook from `web/retro/js/dial.js` when upgrading
   from an earlier SG1 Iris version.
 - Preserves the existing rings, glyphs, chevrons and other installed add-ons.
 - Creates timestamped backups below `web/backups/`.
 - Restore removes only SG1 Iris hooks and managed assets.
+- Restore moves the warning back to its original Black Hole folder and removes
+  the empty Iris audio folders only when the ownership marker is present.
 - Reinstalling is safe and does not duplicate hooks.
 
 ## Control and integration

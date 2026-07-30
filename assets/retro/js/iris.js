@@ -9,7 +9,7 @@ const BLACK_HOLE_GATE_NAME = 'P3W-451';
 const BLACK_HOLE_AUDIO_DELAY_MS = 5000;
 const BLACK_HOLE_CLOSE_DELAY_MS = 10000;
 const BLACK_HOLE_WARNING_CLIP =
-  '/audio_clips/black_hole/outgoing wormhole.wav';
+  '/audio_clips/Iris/black_hole/outgoing wormhole.wav';
 const STATUS_ENDPOINTS = [
   '/stargate/get/dialing_status',
   '/get/dialing_status',

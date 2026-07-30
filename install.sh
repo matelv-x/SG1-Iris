@@ -22,6 +22,8 @@ What it changes:
   - iris.js reads gate status directly, so retro/js/dial.js is not modified
   - removes the old marked dial.js hook from earlier Iris versions when found
   - automatically closes and holds the iris closed for every incoming
+  - moves the dedicated Black Hole warning into the managed
+    soundfx/milkyway/audio_clips/Iris/black_hole folder
   - plays one native warning at 5 s and closes the iris at 10 s after a
     P3W-451 (Black Hole) connection is established
   - preserves existing Retro rings, symbols, chevrons and other add-ons
@@ -71,6 +73,20 @@ resolve_retro_dir() {
   fi
 }
 
+find_sg1_root() {
+  local candidate="$RETRO_DIR"
+  while [ "$candidate" != "/" ]; do
+    if [ -d "$candidate/web/retro" ] &&
+      [ -d "$candidate/soundfx/milkyway/audio_clips" ]; then
+      SG1_ROOT="$candidate"
+      return
+    fi
+    candidate="$(dirname "$candidate")"
+  done
+  echo "Cannot find the SG1 soundfx folder above: $RETRO_DIR" >&2
+  exit 1
+}
+
 need_file() {
   if [ ! -f "$1" ]; then
     echo "Missing required file: $1" >&2
@@ -81,11 +97,26 @@ need_file() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ASSET_DIR="$SCRIPT_DIR/assets/retro"
 resolve_retro_dir "$TARGET"
+find_sg1_root
+
+BLACK_HOLE_SOURCE="$SG1_ROOT/soundfx/milkyway/audio_clips/black_hole/outgoing wormhole.wav"
+IRIS_AUDIO_DIR="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/black_hole"
+IRIS_AUDIO_FILE="$IRIS_AUDIO_DIR/outgoing wormhole.wav"
+IRIS_AUDIO_MARKER="$IRIS_AUDIO_DIR/.sg1-iris-managed"
 
 need_file "$ASSET_DIR/js/iris.js"
 need_file "$ASSET_DIR/css/iris.css"
 need_file "$RETRO_DIR/dial.html"
 need_file "$RETRO_DIR/dial9.html"
+if [ -f "$IRIS_AUDIO_MARKER" ] && [ -f "$IRIS_AUDIO_FILE" ]; then
+  echo "Managed Iris audio is already installed: $IRIS_AUDIO_FILE"
+elif [ ! -f "$BLACK_HOLE_SOURCE" ]; then
+  echo "Missing required source audio file: $BLACK_HOLE_SOURCE" >&2
+  exit 1
+elif [ -e "$IRIS_AUDIO_FILE" ] || [ -e "$IRIS_AUDIO_MARKER" ]; then
+  echo "Refusing to overwrite unmanaged or incomplete Iris audio state: $IRIS_AUDIO_DIR" >&2
+  exit 1
+fi
 
 BACKUP_BASE="$WEB_DIR/backups/sg1-iris-$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="$BACKUP_BASE"
@@ -96,10 +127,16 @@ while [ -e "$BACKUP_DIR" ]; do
 done
 
 echo "Target Retro folder: $RETRO_DIR"
+echo "Managed Iris audio: $IRIS_AUDIO_FILE"
 echo "Backup: $BACKUP_DIR"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "Dry run only. No files will be changed."
+  if [ ! -f "$IRIS_AUDIO_MARKER" ]; then
+    echo "would move dedicated Black Hole warning:"
+    echo "  from: $BLACK_HOLE_SOURCE"
+    echo "  to:   $IRIS_AUDIO_FILE"
+  fi
 else
   mkdir -p "$BACKUP_DIR/retro/js" "$BACKUP_DIR/retro/css"
   cp "$RETRO_DIR/dial.html" "$BACKUP_DIR/retro/dial.html"
@@ -110,6 +147,13 @@ else
 
   cp "$ASSET_DIR/js/iris.js" "$RETRO_DIR/js/iris.js"
   cp "$ASSET_DIR/css/iris.css" "$RETRO_DIR/css/iris.css"
+
+  if [ ! -f "$IRIS_AUDIO_MARKER" ]; then
+    mkdir -p "$IRIS_AUDIO_DIR"
+    mv "$BLACK_HOLE_SOURCE" "$IRIS_AUDIO_FILE"
+    printf '%s\n' "SG1 Iris managed audio asset" > "$IRIS_AUDIO_MARKER"
+    echo "moved dedicated Black Hole warning: $IRIS_AUDIO_FILE"
+  fi
 fi
 
 python3 - "$RETRO_DIR" "$DRY_RUN" <<'PY'
@@ -128,11 +172,11 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260730-black-hole-delay" />
+    <link rel="stylesheet" href="css/iris.css?v=20260730-managed-audio-move" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
-    <script type="module" src="js/iris.js?v=20260730-black-hole-delay"></script>
+    <script type="module" src="js/iris.js?v=20260730-managed-audio-move"></script>
     {JS_END}"""
 
 def remove_existing_hooks(text: str) -> str:
