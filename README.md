@@ -9,6 +9,17 @@ before the central plume appears, then completes the closure.
 Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
 
+![SG1 Iris closing states](media/iris-comparison-banner.png)
+
+## Preview
+
+| One-second pause at two-thirds | Fully closed |
+| --- | --- |
+| ![Iris paused at two-thirds](media/iris-pause-two-thirds.png) | ![Iris fully closed](media/iris-closed.png) |
+
+The publication-ready PNG files in [`media/`](media/) can also be shared
+directly on Discord.
+
 ## Requirements
 
 - SG1 v4 installed in `/home/pi/sg1_v4`.
