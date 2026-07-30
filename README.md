@@ -8,6 +8,8 @@ During closing and opening it pauses for one second at the same two-thirds
 position, immediately before the central plume appears or disappears.
 Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
+Selecting `P3W-451 (Black Hole)` from the address book also closes the iris
+automatically. The active black-hole status keeps it closed for protection.
 
 ## Requirements
 
@@ -64,7 +66,10 @@ sudo systemctl restart stargate.service
 - Injects only marked stylesheet and script hooks into `dial.html` and
   `dial9.html`.
 - Reads the SG1 gate status directly from the web API, so the iris can
-  automatically close on incoming without depending on a `dial.js` hook.
+  automatically close on incoming and an active black-hole connection without
+  depending on a `dial.js` hook.
+- Recognizes the `P3W-451` address directly when it is selected from the Retro
+  address book and starts closing before the wormhole is established.
 - Removes the old marked Iris hook from `web/retro/js/dial.js` when upgrading
   from an earlier SG1 Iris version.
 - Preserves the existing rings, glyphs, chevrons and other installed add-ons.
@@ -94,6 +99,10 @@ Ctrl+I
 Incoming calls close the iris automatically. If you manually open the iris
 during the same incoming wormhole, the add-on respects that manual override
 until the gate returns to idle. The next incoming call will close it again.
+
+Selecting `P3W-451 (Black Hole)` closes the iris immediately. While the gate
+reports an active black-hole connection, opening commands are overridden and
+the iris remains closed.
 
 JavaScript API:
 
