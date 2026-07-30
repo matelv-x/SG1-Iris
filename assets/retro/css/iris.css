@@ -1,0 +1,29 @@
+/* SG1 IRIS ADDON ASSET — managed by install.sh / restore.sh */
+.iris-mechanism {
+  display: block;
+  height: clamp(-100px, 44.8vmin, 448px);
+  left: clamp(-100px, 26.3vmin, 263px);
+  pointer-events: none;
+  position: absolute;
+  text-shadow: none !important;
+  top: clamp(-100px, 12.9vmin, 129px);
+  width: clamp(-100px, 45.1vmin, 451px);
+}
+
+body.crt .iris-mechanism {
+  filter: contrast(1.08) saturate(0.82);
+}
+
+.navigation-menu .a-iris-toggle {
+  white-space: nowrap;
+}
+
+.navigation-menu .a-iris-toggle.iris-closed {
+  color: var(--glyph-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iris-mechanism {
+    scroll-behavior: auto;
+  }
+}
