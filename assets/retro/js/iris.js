@@ -47,7 +47,7 @@ function easeInOutCubic(value) {
     : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
-function drawBlade(ctx, outer, bladeOuter, step, index, value) {
+function drawBlade(ctx, outer, bladeOuter, step, index, value, detailPass) {
   const angle = index * step - Math.PI / 2;
   // Wszystkie punkty łopatki w pozycji otwartej pozostają za wewnętrzną
   // krawędzią istniejącego pierścienia Stargate.
@@ -94,6 +94,45 @@ function drawBlade(ctx, outer, bladeOuter, step, index, value) {
   );
   ctx.closePath();
 
+  if (detailPass) {
+    // All blade edges are drawn only after every fill is complete. This avoids
+    // the painter-order seam where blade 22 used to cover blade 1 at 12 o'clock.
+    ctx.save();
+    ctx.clip();
+    ctx.globalAlpha = 0.11;
+    ctx.strokeStyle = '#f2f5f4';
+    ctx.lineWidth = 0.55;
+    for (let scratch = 0; scratch < 6; scratch += 1) {
+      const radius = bladeOuter * (0.46 + ((scratch * 17) % 37) / 100);
+      const offset = ((scratch * 7) % 19) / 19 - 0.5;
+      const scratchAngle = angle + twist * 0.34 + offset * step;
+      const start = polar(radius, scratchAngle);
+      const end = polar(radius + outer * 0.17, scratchAngle + step * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Draw only the leading edge. The trailing edge is the next blade's
+    // leading edge, so this produces exactly 22 evenly repeated seams.
+    ctx.beginPath();
+    ctx.moveTo(baseA.x, baseA.y);
+    ctx.bezierCurveTo(
+      leadingOuter.x,
+      leadingOuter.y,
+      leadingInner.x,
+      leadingInner.y,
+      tip.x,
+      tip.y,
+    );
+    ctx.lineWidth = Math.max(0.8, outer * 0.0045);
+    ctx.strokeStyle = COLORS.seam;
+    ctx.stroke();
+    return;
+  }
+
   const lightAngle = angle - 0.75;
   const gradient = ctx.createLinearGradient(
     Math.cos(lightAngle) * bladeOuter,
@@ -108,34 +147,8 @@ function drawBlade(ctx, outer, bladeOuter, step, index, value) {
   gradient.addColorStop(0.62, COLORS.highlight);
   gradient.addColorStop(1, COLORS.base);
 
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.68)';
-  ctx.shadowBlur = outer * 0.018;
-  ctx.shadowOffsetX = outer * 0.009;
-  ctx.shadowOffsetY = outer * 0.014;
   ctx.fillStyle = gradient;
   ctx.fill();
-  ctx.shadowColor = 'transparent';
-  ctx.lineWidth = Math.max(0.8, outer * 0.0045);
-  ctx.strokeStyle = COLORS.seam;
-  ctx.stroke();
-
-  ctx.save();
-  ctx.clip();
-  ctx.globalAlpha = 0.11;
-  ctx.strokeStyle = '#f2f5f4';
-  ctx.lineWidth = 0.55;
-  for (let scratch = 0; scratch < 6; scratch += 1) {
-    const radius = bladeOuter * (0.46 + ((scratch * 17) % 37) / 100);
-    const offset = ((scratch * 7) % 19) / 19 - 0.5;
-    const scratchAngle = angle + twist * 0.34 + offset * step;
-    const start = polar(radius, scratchAngle);
-    const end = polar(radius + outer * 0.17, scratchAngle + step * 0.16);
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
 function drawPlume(ctx, outer, amount) {
@@ -285,7 +298,10 @@ function draw() {
   ctx.clip();
 
   for (let index = 0; index < BLADE_COUNT; index += 1) {
-    drawBlade(ctx, outer, bladeOuter, step, index, progress);
+    drawBlade(ctx, outer, bladeOuter, step, index, progress, false);
+  }
+  for (let index = 0; index < BLADE_COUNT; index += 1) {
+    drawBlade(ctx, outer, bladeOuter, step, index, progress, true);
   }
   drawPlume(ctx, outer, easeInOutCubic(plumeProgress));
   drawMechanism(ctx, outer, bladeOuter, step);
@@ -337,14 +353,47 @@ function setClosed(closed) {
   const distance = Math.abs(end - start);
   const startedAt = performance.now();
   const duration = Math.max(180, DURATION * distance);
+  const pauseAt = 2 / 3;
+  const pauseDuration = 1000;
+  const pauseOnClosing = targetClosed && start < pauseAt;
+  const firstStageDistance = pauseOnClosing ? pauseAt - start : 0;
+  const firstStageDuration = pauseOnClosing
+    ? duration * (firstStageDistance / distance)
+    : 0;
+  const finalStageDuration = pauseOnClosing
+    ? duration - firstStageDuration
+    : 0;
 
   if (animationFrame !== null) cancelAnimationFrame(animationFrame);
 
   function animate(now) {
-    const elapsed = Math.min(1, (now - startedAt) / duration);
-    progress = mix(start, end, easeInOutCubic(elapsed));
+    const elapsedMs = now - startedAt;
+    let finished = false;
+
+    if (pauseOnClosing && elapsedMs < firstStageDuration) {
+      const stageProgress = elapsedMs / firstStageDuration;
+      progress = mix(start, pauseAt, easeInOutCubic(stageProgress));
+    } else if (
+      pauseOnClosing &&
+      elapsedMs < firstStageDuration + pauseDuration
+    ) {
+      progress = pauseAt;
+    } else if (pauseOnClosing) {
+      const stageProgress = Math.min(
+        1,
+        (elapsedMs - firstStageDuration - pauseDuration) /
+          Math.max(1, finalStageDuration),
+      );
+      progress = mix(pauseAt, end, easeInOutCubic(stageProgress));
+      finished = stageProgress >= 1;
+    } else {
+      const stageProgress = Math.min(1, elapsedMs / duration);
+      progress = mix(start, end, easeInOutCubic(stageProgress));
+      finished = stageProgress >= 1;
+    }
+
     draw();
-    if (elapsed < 1) {
+    if (!finished) {
       animationFrame = requestAnimationFrame(animate);
     } else {
       animationFrame = null;
