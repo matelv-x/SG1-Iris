@@ -36,10 +36,12 @@ let manualOpenDuringIncoming = false;
 let statusPolling = false;
 let statusEndpointIndex = 0;
 let statusTimer = null;
+let gateConnectionActive = false;
 let blackHoleConnectionId = null;
 let blackHoleAudioTimer = null;
 let blackHoleCloseTimer = null;
 let blackHoleWarningAudio = null;
+let blackHoleRandomAudioBlocked = false;
 const cyclicLayers = [];
 
 function polar(radius, angle) {
@@ -571,17 +573,75 @@ function toggle() {
   setClosed(!targetClosed);
 }
 
-function clearBlackHoleSequence() {
+function isRandomAudioClip(media) {
+  const source = String(media.currentSrc || media.src || '');
+  let path = source;
+  try {
+    path = decodeURIComponent(new URL(source, window.location.href).pathname);
+  } catch (error) {
+    // A malformed media URL cannot match SG1's known audio_clips tree.
+  }
+
+  const normalized = path.toLowerCase();
+  const randomClip = normalized.includes('/audio_clips/');
+  const dedicatedIrisWarning = normalized.includes(
+    '/audio_clips/iris/black_hole/outgoing wormhole.wav',
+  );
+  return randomClip && !dedicatedIrisWarning;
+}
+
+function setBlackHoleRandomAudioBlocked(blocked) {
+  blackHoleRandomAudioBlocked = Boolean(blocked);
+  document.documentElement.classList.toggle(
+    'iris-random-audio-blocked',
+    blackHoleRandomAudioBlocked,
+  );
+  document.dispatchEvent(
+    new CustomEvent('iris:random-audio-lock', {
+      detail: {blocked: blackHoleRandomAudioBlocked},
+    }),
+  );
+}
+
+function installRandomAudioGuard() {
+  const mediaPrototype = window.HTMLMediaElement?.prototype;
+  if (!mediaPrototype || window.__sg1IrisRandomAudioGuardInstalled) return;
+
+  const nativePlay = mediaPrototype.play;
+  mediaPrototype.play = function guardedIrisAudioPlay(...args) {
+    if (blackHoleRandomAudioBlocked && isRandomAudioClip(this)) {
+      try {
+        this.pause();
+        this.currentTime = 0;
+      } catch (error) {
+        console.debug('[sg1-iris] Random audio pause failed', error);
+      }
+      return Promise.resolve();
+    }
+    return nativePlay.apply(this, args);
+  };
+  window.__sg1IrisRandomAudioGuardInstalled = true;
+}
+
+function stopBlackHoleWarning() {
+  if (!blackHoleWarningAudio) return;
+  blackHoleWarningAudio.pause();
+  blackHoleWarningAudio.currentTime = 0;
+  blackHoleWarningAudio = null;
+}
+
+function finishBlackHoleSequence() {
   clearTimeout(blackHoleAudioTimer);
   clearTimeout(blackHoleCloseTimer);
   blackHoleAudioTimer = null;
   blackHoleCloseTimer = null;
+  stopBlackHoleWarning();
+  setBlackHoleRandomAudioBlocked(false);
+}
+
+function clearBlackHoleSequence() {
+  finishBlackHoleSequence();
   blackHoleConnectionId = null;
-  if (blackHoleWarningAudio) {
-    blackHoleWarningAudio.pause();
-    blackHoleWarningAudio.currentTime = 0;
-    blackHoleWarningAudio = null;
-  }
 }
 
 function prepareBlackHoleWarning() {
@@ -623,12 +683,21 @@ function blackHoleElapsedMs(status) {
   return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
 }
 
+function isGateConnectionActive(value) {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return !['', '0', 'false', 'none', 'idle', 'inactive'].includes(normalized);
+  }
+  return Boolean(value);
+}
+
 function scheduleBlackHoleSequence(status) {
   const connectionId = String(status.wormhole_open_time || 'active');
   if (blackHoleConnectionId === connectionId) return;
 
   clearBlackHoleSequence();
   blackHoleConnectionId = connectionId;
+  setBlackHoleRandomAudioBlocked(true);
   autoClosed = false;
   manualOpenDuringIncoming = false;
   localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
@@ -661,11 +730,14 @@ function syncGateStatus(status) {
     : [];
   const lockedIncoming = Number(status.locked_chevrons_incoming) || 0;
   const wormholeActive = String(status.wormhole_active || '').toLowerCase();
+  const connectionActive = isGateConnectionActive(status.wormhole_active);
+  const connectionEnded = gateConnectionActive && !connectionActive;
+  gateConnectionActive = connectionActive;
   const connectedPlanet = String(status.connected_planet || '')
     .trim()
     .toUpperCase();
   const blackHoleConnected =
-    Boolean(status.wormhole_active)
+    connectionActive
     && (
       Boolean(status.black_hole_connected)
       || connectedPlanet === BLACK_HOLE_GATE_NAME
@@ -676,7 +748,7 @@ function syncGateStatus(status) {
     || lockedIncoming > 0;
   const idle =
     !incoming
-    && !status.wormhole_active
+    && !connectionActive
     && incomingAddress.length === 0
     && lockedIncoming === 0;
 
@@ -694,6 +766,16 @@ function syncGateStatus(status) {
     return;
   } else if (blackHoleConnectionId !== null) {
     clearBlackHoleSequence();
+  }
+
+  // Match the rest of SG1's post-connection reset: every completed incoming,
+  // outgoing or Black Hole wormhole returns the iris to its open position.
+  if (connectionEnded) {
+    autoClosed = false;
+    manualOpenDuringIncoming = false;
+    localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
+    setClosed(false);
+    return;
   }
 
   // Incoming always wins over a manual open command. The iris owns this check
@@ -753,6 +835,8 @@ function initialize() {
   canvas.setAttribute('aria-label', 'Animated titanium iris');
   ring.after(canvas);
 
+  installRandomAudioGuard();
+
   const resizeObserver = new ResizeObserver(draw);
   resizeObserver.observe(canvas);
   draw();
@@ -780,6 +864,11 @@ function initialize() {
   document.addEventListener('iris:close', () => setClosed(true));
   document.addEventListener('iris:toggle', toggle);
   document.addEventListener('iris:gate-status', event => syncGateStatus(event.detail));
+  document.addEventListener('iris:state', event => {
+    if (event.detail?.closed && blackHoleConnectionId !== null) {
+      finishBlackHoleSequence();
+    }
+  });
 
   window.sg1Iris = Object.freeze({
     open: () => setClosed(false),

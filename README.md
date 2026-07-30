@@ -13,6 +13,11 @@ After a connection to `P3W-451 (Black Hole)` is established, SG1 Iris plays
 at forty-five seconds.
 The clip lasts about 7.87 seconds, so it finishes around 42.87 seconds and
 leaves roughly 2.13 seconds before the iris begins moving.
+Only during this Black Hole pre-close sequence, regular random clips from
+`audio_clips` are blocked. The dedicated Iris warning remains allowed. Random
+clip playback is restored after the iris has completely closed.
+When any active wormhole ends, the iris automatically opens and returns to its
+resting position, matching the post-connection reset of the other SG1 hardware.
 The installer moves this dedicated clip from SG1's original Black Hole audio
 folder into:
 
@@ -84,6 +89,11 @@ sudo systemctl restart stargate.service
   browser audio handling without replacing or reconfiguring it.
 - Preloads the warning as soon as the Black Hole connection is established so
   network latency does not consume its safety gap before closure.
+- Applies the random-audio guard only to an active Black Hole sequence. Normal
+  gate sounds are not blocked, and the guard is removed after full iris closure
+  or immediately if the connection ends early.
+- Automatically opens after every completed incoming, outgoing or Black Hole
+  connection.
 - Moves the warning out of the general Black Hole clip folder into the marked,
   managed `soundfx/milkyway/audio_clips/Iris/black_hole` folder so it belongs
   only to this Iris event.

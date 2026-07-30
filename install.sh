@@ -26,6 +26,8 @@ What it changes:
     soundfx/milkyway/audio_clips/Iris/black_hole folder
   - plays one browser warning at 35 s and closes the iris at 45 s after a
     P3W-451 (Black Hole) connection is established
+  - blocks only random audio_clips before the iris closes, allows the dedicated
+    Iris warning, then restores random audio playback after closure
   - preserves existing Retro rings, symbols, chevrons and other add-ons
   - creates a timestamped backup before editing
   - can be safely re-run without duplicate hooks
@@ -172,11 +174,11 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260730-black-hole-audio-35s-close-45s" />
+    <link rel="stylesheet" href="css/iris.css?v=20260730-black-hole-random-audio-lock" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
-    <script type="module" src="js/iris.js?v=20260730-black-hole-audio-35s-close-45s"></script>
+    <script type="module" src="js/iris.js?v=20260730-black-hole-random-audio-lock"></script>
     {JS_END}"""
 
 def remove_existing_hooks(text: str) -> str:
