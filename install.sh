@@ -22,7 +22,8 @@ What it changes:
   - iris.js reads gate status directly, so retro/js/dial.js is not modified
   - removes the old marked dial.js hook from earlier Iris versions when found
   - automatically closes and holds the iris closed for every incoming
-  - automatically closes the iris when P3W-451 (Black Hole) is selected
+  - plays one native warning at 5 s and closes the iris at 10 s after a
+    P3W-451 (Black Hole) connection is established
   - preserves existing Retro rings, symbols, chevrons and other add-ons
   - creates a timestamped backup before editing
   - can be safely re-run without duplicate hooks
@@ -127,11 +128,11 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260730-black-hole-auto-close" />
+    <link rel="stylesheet" href="css/iris.css?v=20260730-black-hole-delay" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
-    <script type="module" src="js/iris.js?v=20260730-black-hole-auto-close"></script>
+    <script type="module" src="js/iris.js?v=20260730-black-hole-delay"></script>
     {JS_END}"""
 
 def remove_existing_hooks(text: str) -> str:
