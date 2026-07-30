@@ -6,10 +6,12 @@ const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
 const BLACK_HOLE_GATE_NAME = 'P3W-451';
-const BLACK_HOLE_AUDIO_DELAY_MS = 5000;
-const BLACK_HOLE_CLOSE_DELAY_MS = 10000;
-const BLACK_HOLE_WARNING_CLIP =
-  '/audio_clips/Iris/black_hole/outgoing wormhole.wav';
+// The dedicated clip lasts 7.871565 seconds. Starting it at 35 seconds lets
+// it finish around 42.87 seconds and leaves about 2.13 seconds before closure.
+const BLACK_HOLE_AUDIO_DELAY_MS = 35000;
+const BLACK_HOLE_CLOSE_DELAY_MS = 45000;
+const BLACK_HOLE_WARNING_FILE =
+  'audio_clips/Iris/black_hole/outgoing wormhole.wav';
 const STATUS_ENDPOINTS = [
   '/stargate/get/dialing_status',
   '/get/dialing_status',
@@ -37,6 +39,7 @@ let statusTimer = null;
 let blackHoleConnectionId = null;
 let blackHoleAudioTimer = null;
 let blackHoleCloseTimer = null;
+let blackHoleWarningAudio = null;
 const cyclicLayers = [];
 
 function polar(radius, angle) {
@@ -574,18 +577,41 @@ function clearBlackHoleSequence() {
   blackHoleAudioTimer = null;
   blackHoleCloseTimer = null;
   blackHoleConnectionId = null;
+  if (blackHoleWarningAudio) {
+    blackHoleWarningAudio.pause();
+    blackHoleWarningAudio.currentTime = 0;
+    blackHoleWarningAudio = null;
+  }
+}
+
+function prepareBlackHoleWarning() {
+  if (blackHoleWarningAudio) return blackHoleWarningAudio;
+
+  const soundBase = window.location.pathname.startsWith('/fan113/')
+    ? '/fan113/soundfx/milkyway/'
+    : '/soundfx/milkyway/';
+  const audio = new Audio(soundBase + BLACK_HOLE_WARNING_FILE);
+  audio.preload = 'auto';
+  audio.volume = 1;
+  blackHoleWarningAudio = audio;
+  audio.addEventListener(
+    'ended',
+    () => {
+      if (blackHoleWarningAudio === audio) blackHoleWarningAudio = null;
+    },
+    {once: true},
+  );
+  audio.load();
+  return audio;
 }
 
 async function playBlackHoleWarning() {
+  const audio = prepareBlackHoleWarning();
   try {
-    const response = await fetch('/stargate/do/audio_play', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({clip: BLACK_HOLE_WARNING_CLIP}),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await audio.play();
   } catch (error) {
     console.debug('[sg1-iris] Black Hole warning audio failed', error);
+    if (blackHoleWarningAudio === audio) blackHoleWarningAudio = null;
   }
 }
 
@@ -612,8 +638,9 @@ function scheduleBlackHoleSequence(status) {
   const closeDelay = BLACK_HOLE_CLOSE_DELAY_MS - elapsed;
 
   // The warning belongs only to this Black Hole event. If the page joins the
-  // connection after its five-second cue has already passed, do not replay it.
+  // connection after its cue has already passed, do not replay it.
   if (audioDelay > 0) {
+    prepareBlackHoleWarning();
     blackHoleAudioTimer = setTimeout(() => {
       blackHoleAudioTimer = null;
       playBlackHoleWarning();
@@ -659,9 +686,9 @@ function syncGateStatus(status) {
     blackHoleConnected,
   );
 
-  // P3W-451 gets one dedicated warning five seconds after the connection is
-  // established, followed by the Iris close command at ten seconds. The clip
-  // is played through SG1's native audio API and does not replace its player.
+  // P3W-451 gets one dedicated browser warning at thirty-five seconds, followed by
+  // the Iris close command at forty-five seconds. This Audio instance is
+  // isolated from SG1's normal browser audio flow and is discarded afterward.
   if (blackHoleConnected) {
     scheduleBlackHoleSequence(status);
     return;
