@@ -29,6 +29,7 @@ let manualOpenDuringIncoming = false;
 let statusPolling = false;
 let statusEndpointIndex = 0;
 let statusTimer = null;
+const cyclicLayers = [];
 
 function polar(radius, angle) {
   return {
@@ -47,7 +48,7 @@ function easeInOutCubic(value) {
     : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
-function drawBlade(ctx, outer, bladeOuter, step, index, value, detailPass) {
+function getBladeGeometry(outer, bladeOuter, step, index, value) {
   const angle = index * step - Math.PI / 2;
   // Wszystkie punkty łopatki w pozycji otwartej pozostają za wewnętrzną
   // krawędzią istniejącego pierścienia Stargate.
@@ -74,66 +75,58 @@ function drawBlade(ctx, outer, bladeOuter, step, index, value, detailPass) {
     angle + step * 0.55 + twist * 0.18,
   );
 
-  ctx.beginPath();
-  ctx.moveTo(baseA.x, baseA.y);
+  return {
+    angle,
+    baseA,
+    baseB,
+    leadingInner,
+    leadingOuter,
+    tip,
+    trailingInner,
+    trailingOuter,
+    twist,
+  };
+}
+
+function appendBladePath(ctx, blade) {
+  ctx.moveTo(blade.baseA.x, blade.baseA.y);
   ctx.bezierCurveTo(
-    leadingOuter.x,
-    leadingOuter.y,
-    leadingInner.x,
-    leadingInner.y,
-    tip.x,
-    tip.y,
+    blade.leadingOuter.x,
+    blade.leadingOuter.y,
+    blade.leadingInner.x,
+    blade.leadingInner.y,
+    blade.tip.x,
+    blade.tip.y,
   );
   ctx.bezierCurveTo(
-    trailingInner.x,
-    trailingInner.y,
-    trailingOuter.x,
-    trailingOuter.y,
-    baseB.x,
-    baseB.y,
+    blade.trailingInner.x,
+    blade.trailingInner.y,
+    blade.trailingOuter.x,
+    blade.trailingOuter.y,
+    blade.baseB.x,
+    blade.baseB.y,
   );
   ctx.closePath();
+}
 
-  if (detailPass) {
-    // All blade edges are drawn only after every fill is complete. This avoids
-    // the painter-order seam where blade 22 used to cover blade 1 at 12 o'clock.
-    ctx.save();
-    ctx.clip();
-    ctx.globalAlpha = 0.11;
-    ctx.strokeStyle = '#f2f5f4';
-    ctx.lineWidth = 0.55;
-    for (let scratch = 0; scratch < 6; scratch += 1) {
-      const radius = bladeOuter * (0.46 + ((scratch * 17) % 37) / 100);
-      const offset = ((scratch * 7) % 19) / 19 - 0.5;
-      const scratchAngle = angle + twist * 0.34 + offset * step;
-      const start = polar(radius, scratchAngle);
-      const end = polar(radius + outer * 0.17, scratchAngle + step * 0.16);
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-    }
-    ctx.restore();
+function traceBlade(ctx, blade) {
+  ctx.beginPath();
+  appendBladePath(ctx, blade);
+}
 
-    // Draw only the leading edge. The trailing edge is the next blade's
-    // leading edge, so this produces exactly 22 evenly repeated seams.
-    ctx.beginPath();
-    ctx.moveTo(baseA.x, baseA.y);
-    ctx.bezierCurveTo(
-      leadingOuter.x,
-      leadingOuter.y,
-      leadingInner.x,
-      leadingInner.y,
-      tip.x,
-      tip.y,
-    );
-    ctx.lineWidth = Math.max(0.8, outer * 0.0045);
-    ctx.strokeStyle = COLORS.seam;
-    ctx.stroke();
-    return;
-  }
+function drawBlade(
+  ctx,
+  outer,
+  bladeOuter,
+  step,
+  index,
+  value,
+  { drawSeam = true, drawShadow = true } = {},
+) {
+  const blade = getBladeGeometry(outer, bladeOuter, step, index, value);
+  traceBlade(ctx, blade);
 
-  const lightAngle = angle - 0.75;
+  const lightAngle = blade.angle - 0.75;
   const gradient = ctx.createLinearGradient(
     Math.cos(lightAngle) * bladeOuter,
     Math.sin(lightAngle) * bladeOuter,
@@ -147,8 +140,150 @@ function drawBlade(ctx, outer, bladeOuter, step, index, value, detailPass) {
   gradient.addColorStop(0.62, COLORS.highlight);
   gradient.addColorStop(1, COLORS.base);
 
+  ctx.shadowColor = drawShadow ? 'rgba(0, 0, 0, 0.68)' : 'transparent';
+  ctx.shadowBlur = drawShadow ? outer * 0.018 : 0;
+  ctx.shadowOffsetX = drawShadow ? outer * 0.009 : 0;
+  ctx.shadowOffsetY = drawShadow ? outer * 0.014 : 0;
   ctx.fillStyle = gradient;
   ctx.fill();
+  ctx.shadowColor = 'transparent';
+  if (drawSeam) {
+    ctx.lineWidth = Math.max(0.8, outer * 0.0045);
+    ctx.strokeStyle = COLORS.seam;
+    ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.clip();
+  ctx.globalAlpha = 0.11;
+  ctx.strokeStyle = '#f2f5f4';
+  ctx.lineWidth = 0.55;
+  for (let scratch = 0; scratch < 6; scratch += 1) {
+    const radius = bladeOuter * (0.46 + ((scratch * 17) % 37) / 100);
+    const offset = ((scratch * 7) % 19) / 19 - 0.5;
+    const scratchAngle = blade.angle + blade.twist * 0.34 + offset * step;
+    const start = polar(radius, scratchAngle);
+    const end = polar(radius + outer * 0.17, scratchAngle + step * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function clipToBlade(ctx, outer, bladeOuter, step, index, value) {
+  const blade = getBladeGeometry(outer, bladeOuter, step, index, value);
+  traceBlade(ctx, blade);
+  ctx.clip();
+}
+
+function prepareCyclicLayer(slot, layerSize, layerScale) {
+  let layer = cyclicLayers[slot];
+  if (!layer) {
+    layer = document.createElement('canvas');
+    cyclicLayers[slot] = layer;
+  }
+  if (layer.width !== layerSize || layer.height !== layerSize) {
+    layer.width = layerSize;
+    layer.height = layerSize;
+  }
+
+  const layerCtx = layer.getContext('2d');
+  if (!layerCtx) return null;
+  layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+  layerCtx.globalCompositeOperation = 'source-over';
+  layerCtx.clearRect(0, 0, layerSize, layerSize);
+  layerCtx.setTransform(
+    layerScale,
+    0,
+    0,
+    layerScale,
+    layerSize / 2,
+    layerSize / 2,
+  );
+  return { canvas: layer, ctx: layerCtx };
+}
+
+function drawCyclicBladePair(
+  ctx,
+  outer,
+  bladeOuter,
+  step,
+  value,
+) {
+  const bladeOne = getBladeGeometry(
+    outer,
+    bladeOuter,
+    step,
+    0,
+    value,
+  );
+
+  // Blade 22 is the end of Canvas' linear painter order, while a real iris
+  // wraps back to blade 1. Render the pair on reusable transparent layers so
+  // the complete blade 22 (metal, seam, scratches and shadow) can pass under
+  // blade 1 exactly like every other neighboring pair.
+  const layerScale = 2;
+  const layerExtent = Math.ceil(outer * 2.1);
+  const layerSize = layerExtent * 2 * layerScale;
+  const blade22Layer = prepareCyclicLayer(0, layerSize, layerScale);
+  const blade22Mask = prepareCyclicLayer(1, layerSize, layerScale);
+  const blade1Layer = prepareCyclicLayer(2, layerSize, layerScale);
+  if (!blade22Layer || !blade22Mask || !blade1Layer) return;
+
+  drawBlade(
+    blade22Layer.ctx,
+    outer,
+    bladeOuter,
+    step,
+    BLADE_COUNT - 1,
+    value,
+  );
+
+  // Preserve the original alpha footprint of blade 22, including its shadow.
+  blade22Mask.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  blade22Mask.ctx.drawImage(blade22Layer.canvas, 0, 0);
+
+  // Remove every part of blade 22 located below the solid metal of blade 1.
+  blade22Layer.ctx.globalCompositeOperation = 'destination-out';
+  traceBlade(blade22Layer.ctx, bladeOne);
+  blade22Layer.ctx.fillStyle = '#000';
+  blade22Layer.ctx.fill();
+  blade22Layer.ctx.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(
+    blade22Layer.canvas,
+    -layerExtent,
+    -layerExtent,
+    layerExtent * 2,
+    layerExtent * 2,
+  );
+
+  // Repaint blade 1 only inside blade 22's complete former footprint. Applying
+  // destination-in once to the finished blade avoids masking its individual
+  // fill, stroke and scratch operations separately.
+  drawBlade(
+    blade1Layer.ctx,
+    outer,
+    bladeOuter,
+    step,
+    0,
+    value,
+    { drawShadow: false },
+  );
+  blade1Layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  blade1Layer.ctx.globalCompositeOperation = 'destination-in';
+  blade1Layer.ctx.drawImage(blade22Mask.canvas, 0, 0);
+  blade1Layer.ctx.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(
+    blade1Layer.canvas,
+    -layerExtent,
+    -layerExtent,
+    layerExtent * 2,
+    layerExtent * 2,
+  );
 }
 
 function drawPlume(ctx, outer, amount) {
@@ -297,12 +432,12 @@ function draw() {
   ctx.arc(0, 0, apertureRadius, 0, TAU);
   ctx.clip();
 
-  for (let index = 0; index < BLADE_COUNT; index += 1) {
-    drawBlade(ctx, outer, bladeOuter, step, index, progress, false);
+  for (let index = 0; index < BLADE_COUNT - 1; index += 1) {
+    drawBlade(ctx, outer, bladeOuter, step, index, progress);
   }
-  for (let index = 0; index < BLADE_COUNT; index += 1) {
-    drawBlade(ctx, outer, bladeOuter, step, index, progress, true);
-  }
+
+  drawCyclicBladePair(ctx, outer, bladeOuter, step, progress);
+
   drawPlume(ctx, outer, easeInOutCubic(plumeProgress));
   drawMechanism(ctx, outer, bladeOuter, step);
   ctx.restore();
