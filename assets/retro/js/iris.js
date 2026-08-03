@@ -723,6 +723,7 @@ function scheduleBlackHoleSequence(status) {
   autoClosed = false;
   manualOpenDuringIncoming = false;
   localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
+  setClosed(false);
 
   const elapsed = blackHoleElapsedMs(status);
   const audioDelay = BLACK_HOLE_AUDIO_DELAY_MS - elapsed;
