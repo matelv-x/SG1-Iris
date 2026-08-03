@@ -691,9 +691,20 @@ function isGateConnectionActive(value) {
   return Boolean(value);
 }
 
+function enforceBlackHoleClosure(status) {
+  if (blackHoleElapsedMs(status) >= BLACK_HOLE_CLOSE_DELAY_MS) {
+    setClosed(true);
+    return true;
+  }
+  return false;
+}
+
 function scheduleBlackHoleSequence(status) {
   const connectionId = String(status.wormhole_open_time || 'active');
-  if (blackHoleConnectionId === connectionId) return;
+  if (blackHoleConnectionId === connectionId) {
+    enforceBlackHoleClosure(status);
+    return;
+  }
 
   clearBlackHoleSequence();
   blackHoleConnectionId = connectionId;
@@ -716,10 +727,12 @@ function scheduleBlackHoleSequence(status) {
     }, audioDelay);
   }
 
+  if (closeDelay <= 0 || enforceBlackHoleClosure(status)) return;
+
   blackHoleCloseTimer = setTimeout(() => {
     blackHoleCloseTimer = null;
     setClosed(true);
-  }, Math.max(0, closeDelay));
+  }, closeDelay);
 }
 
 function syncGateStatus(status) {
