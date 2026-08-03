@@ -8,9 +8,13 @@ During closing and opening it pauses for one second at the same two-thirds
 position, immediately before the central plume appears or disappears.
 Every incoming dialing sequence automatically closes the iris and keeps it
 closed while the incoming status remains active.
-After a connection to `P3W-451 (Black Hole)` is established, SG1 Iris plays
-`outgoing wormhole.wav` once in the browser at thirty-five seconds and starts closing
-at forty-five seconds.
+After a connection to `P3W-451 (Black Hole)` is established, SG1 Iris keeps
+the iris open at the start of the event, plays `outgoing wormhole.wav` once in
+the browser at thirty-five seconds and starts closing at forty-five seconds.
+The Black Hole timing is calculated from the Stargate backend countdown
+(`wormhole_max_time` and `wormhole_time_till_close`), not from the browser or
+computer clock, so it behaves consistently across Mac, Windows, Android and
+tablet WebView browsers.
 The clip lasts about 7.87 seconds, so it finishes around 42.87 seconds and
 leaves roughly 2.13 seconds before the iris begins moving.
 Only during this Black Hole pre-close sequence, regular random clips from
@@ -59,6 +63,42 @@ http://stargate.local/retro/dial.html
 
 If your gate uses a different local name or IP address, open the same Retro path
 on that address instead.
+
+## Black Hole update
+
+Use the latest version if you want the current Black Hole / Iris behavior:
+
+- detects `P3W-451` / Black Hole connections
+- keeps the iris open at the start of the Black Hole event
+- uses the Stargate backend countdown instead of the browser clock
+- closes the iris automatically after the Black Hole delay
+- avoids old saved browser state forcing the iris closed at the start of a new
+  Black Hole event
+- works more reliably across Mac, Windows, Android, Safari, Edge, Chrome,
+  Firefox and Android WebView
+
+To update an existing installation, run the normal install block again:
+
+```bash
+cd /home/pi
+rm -rf SG1-Iris
+git clone https://github.com/matelv-x/SG1-Iris.git
+cd SG1-Iris
+chmod +x install.sh restore.sh
+sudo ./install.sh --target /home/pi/sg1_v4
+sudo systemctl restart stargate.service
+```
+
+After updating, hard-refresh the Retro page:
+
+```text
+Edge / Chrome: Ctrl + F5
+Firefox: Ctrl + Shift + R
+```
+
+If a browser still behaves like the old version, delete the site data/cookies
+for your gate address, for example `stargate.local`, `gate3.local` or the
+gate IP address, then reopen the Retro page.
 
 ## Dry run
 
@@ -131,9 +171,11 @@ during the same incoming wormhole, the add-on respects that manual override
 until the gate returns to idle. The next incoming call will close it again.
 
 Selecting `P3W-451 (Black Hole)` does not close the iris during dialing. Once
-the connection is established, the dedicated `outgoing wormhole.wav` warning
-plays once after thirty-five seconds and the iris starts closing after forty-five
-seconds.
+the connection is established, the iris is forced open for the start of that
+Black Hole event, the dedicated `outgoing wormhole.wav` warning plays once
+after thirty-five seconds and the iris starts closing after forty-five seconds.
+The countdown comes from the Stargate backend status, so client clock drift or
+browser timer differences do not change the intended timing.
 If the connection ends before either action, the pending action is cancelled.
 
 JavaScript API:
