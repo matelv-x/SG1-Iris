@@ -676,6 +676,17 @@ async function playBlackHoleWarning() {
 }
 
 function blackHoleElapsedMs(status) {
+  const maxSeconds = Number(status.wormhole_max_time);
+  const remainingSeconds = Number(status.wormhole_time_till_close);
+  if (
+    Number.isFinite(maxSeconds)
+    && Number.isFinite(remainingSeconds)
+    && maxSeconds > 0
+    && remainingSeconds > 0
+  ) {
+    return Math.max(0, (maxSeconds - remainingSeconds) * 1000);
+  }
+
   const openedAtSeconds = Number(status.wormhole_open_time);
   if (!Number.isFinite(openedAtSeconds) || openedAtSeconds <= 0) return 0;
 
