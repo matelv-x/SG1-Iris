@@ -22,6 +22,9 @@ Only during this Black Hole pre-close sequence, regular random clips from
 clip playback is restored after the iris has completely closed.
 When any active wormhole ends, the iris automatically opens and returns to its
 resting position, matching the post-connection reset of the other SG1 hardware.
+The Black Hole auto-close command is issued only once per connection. After it
+closes, the operator can reopen the iris with the navigation control or
+`Ctrl+I` without the status poll immediately closing it again.
 The installer moves this dedicated clip from SG1's original Black Hole audio
 folder into:
 
