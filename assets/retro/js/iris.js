@@ -38,6 +38,7 @@ let statusEndpointIndex = 0;
 let statusTimer = null;
 let gateConnectionActive = false;
 let blackHoleConnectionId = null;
+let blackHoleClosureIssued = false;
 let blackHoleAudioTimer = null;
 let blackHoleCloseTimer = null;
 let blackHoleWarningAudio = null;
@@ -642,6 +643,7 @@ function finishBlackHoleSequence() {
 function clearBlackHoleSequence() {
   finishBlackHoleSequence();
   blackHoleConnectionId = null;
+  blackHoleClosureIssued = false;
 }
 
 function prepareBlackHoleWarning() {
@@ -702,18 +704,22 @@ function isGateConnectionActive(value) {
   return Boolean(value);
 }
 
-function enforceBlackHoleClosure(status) {
-  if (blackHoleElapsedMs(status) >= BLACK_HOLE_CLOSE_DELAY_MS) {
-    setClosed(true);
-    return true;
-  }
-  return false;
+function issueBlackHoleClosure() {
+  if (blackHoleClosureIssued) return false;
+  blackHoleClosureIssued = true;
+  setClosed(true);
+  return true;
 }
 
 function scheduleBlackHoleSequence(status) {
   const connectionId = String(status.wormhole_open_time || 'active');
   if (blackHoleConnectionId === connectionId) {
-    enforceBlackHoleClosure(status);
+    if (
+      !blackHoleClosureIssued
+      && blackHoleElapsedMs(status) >= BLACK_HOLE_CLOSE_DELAY_MS
+    ) {
+      issueBlackHoleClosure();
+    }
     return;
   }
 
@@ -739,11 +745,14 @@ function scheduleBlackHoleSequence(status) {
     }, audioDelay);
   }
 
-  if (closeDelay <= 0 || enforceBlackHoleClosure(status)) return;
+  if (closeDelay <= 0) {
+    issueBlackHoleClosure();
+    return;
+  }
 
   blackHoleCloseTimer = setTimeout(() => {
     blackHoleCloseTimer = null;
-    setClosed(true);
+    issueBlackHoleClosure();
   }, closeDelay);
 }
 
