@@ -105,10 +105,17 @@ if [ "$DRY_RUN" -eq 0 ]; then
       && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" "$BACKUP_DIR/soundfx/$iris_clip" \
       || true
   done
-  manual_hold_clip="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/Manual_Open_Iris/it's gonna hold.mp3"
-  if [ -f "$manual_hold_clip" ]; then
+  manual_hold_dir="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/Manual_Open_Iris"
+  manual_hold_clip="$manual_hold_dir/it's gonna hold.mp3"
+  manual_loop_clip="$manual_hold_dir/Iris.mp3"
+  if [ -f "$manual_hold_clip" ] || [ -f "$manual_loop_clip" ]; then
     mkdir -p "$BACKUP_DIR/soundfx/Manual_Open_Iris"
+  fi
+  if [ -f "$manual_hold_clip" ]; then
     cp -a "$manual_hold_clip" "$BACKUP_DIR/soundfx/Manual_Open_Iris/it's gonna hold.mp3"
+  fi
+  if [ -f "$manual_loop_clip" ]; then
+    cp -a "$manual_loop_clip" "$BACKUP_DIR/soundfx/Manual_Open_Iris/Iris.mp3"
   fi
 fi
 
@@ -156,16 +163,24 @@ for audio_file in "${IRIS_ROOT_AUDIO_FILES[@]}"; do
 done
 
 MANUAL_HOLD_DIR="$IRIS_ROOT_AUDIO_DIR/Manual_Open_Iris"
-MANUAL_HOLD_FILE="$MANUAL_HOLD_DIR/it's gonna hold.mp3"
-if [ -f "$MANUAL_HOLD_FILE" ]; then
+MANUAL_HOLD_FILES=(
+  "it's gonna hold.mp3"
+  "Iris.mp3"
+)
+for audio_file in "${MANUAL_HOLD_FILES[@]}"; do
+  path="$MANUAL_HOLD_DIR/$audio_file"
+  if [ -f "$path" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "would remove manual Iris hold audio: $MANUAL_HOLD_FILE"
+    echo "would remove manual Iris hold audio: $path"
   else
-    rm -f "$MANUAL_HOLD_FILE"
-    echo "removed manual Iris hold audio: $MANUAL_HOLD_FILE"
-    rmdir "$MANUAL_HOLD_DIR" 2>/dev/null || true
-    rmdir "$IRIS_ROOT_AUDIO_DIR" 2>/dev/null || true
+    rm -f "$path"
+    echo "removed manual Iris hold audio: $path"
   fi
+  fi
+done
+if [ "$DRY_RUN" -eq 0 ]; then
+  rmdir "$MANUAL_HOLD_DIR" 2>/dev/null || true
+  rmdir "$IRIS_ROOT_AUDIO_DIR" 2>/dev/null || true
 fi
 
 if [ "$DRY_RUN" -eq 1 ]; then

@@ -31,6 +31,8 @@ What it changes:
     Iris warning, then restores random audio playback after closure
   - plays the optional manual-close hold clip only after a user closes the iris
     with the menu button or Ctrl+I; automatic Black Hole closures do not use it
+  - starts the optional manual closed idle loop after that hold clip ends, only
+    while the iris remains closed and the gate is not active
   - preserves existing Retro rings, symbols, chevrons and other add-ons
   - creates a timestamped backup before editing
   - can be safely re-run without duplicate hooks
@@ -155,10 +157,17 @@ else
       && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" "$BACKUP_DIR/soundfx/$iris_clip" \
       || true
   done
-  manual_hold_clip="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/Manual_Open_Iris/it's gonna hold.mp3"
-  if [ -f "$manual_hold_clip" ]; then
+  manual_hold_dir="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/Manual_Open_Iris"
+  manual_hold_clip="$manual_hold_dir/it's gonna hold.mp3"
+  manual_loop_clip="$manual_hold_dir/Iris.mp3"
+  if [ -f "$manual_hold_clip" ] || [ -f "$manual_loop_clip" ]; then
     mkdir -p "$BACKUP_DIR/soundfx/Manual_Open_Iris"
+  fi
+  if [ -f "$manual_hold_clip" ]; then
     cp -a "$manual_hold_clip" "$BACKUP_DIR/soundfx/Manual_Open_Iris/it's gonna hold.mp3"
+  fi
+  if [ -f "$manual_loop_clip" ]; then
+    cp -a "$manual_loop_clip" "$BACKUP_DIR/soundfx/Manual_Open_Iris/Iris.mp3"
   fi
 
   cp "$ASSET_DIR/js/iris.js" "$RETRO_DIR/js/iris.js"

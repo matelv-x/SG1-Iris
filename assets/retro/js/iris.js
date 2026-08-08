@@ -8,9 +8,11 @@ const IRIS_AUDIO_FILES = {
   open: 'audio_clips/Iris/Iris Open.m4a',
   close: 'audio_clips/Iris/Iris Close.mp3',
   manualClose: "audio_clips/Iris/Manual_Open_Iris/it's gonna hold.mp3",
+  manualClosedIdleLoop: 'audio_clips/Iris/Manual_Open_Iris/Iris.mp3',
 };
 const IRIS_MANUAL_CLOSE_AUDIO_DURATION_MS = 20036;
 const IRIS_AUDIO_LOCK_PAD_MS = 250;
+const IRIS_MANUAL_LOOP_CROSSFADE_SECONDS = 0.08;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
@@ -46,6 +48,7 @@ let statusPolling = false;
 let statusEndpointIndex = 0;
 let statusTimer = null;
 let gateConnectionActive = false;
+let gateActivityActive = false;
 let blackHoleConnectionId = null;
 let blackHoleClosureIssued = false;
 let blackHoleAudioTimer = null;
@@ -59,6 +62,8 @@ let irisMotionAudio = null;
 let manualCloseAudio = null;
 let manualCloseAudioLocked = false;
 let manualCloseAudioTimer = null;
+let manualClosedIdleLoopAudio = null;
+let manualClosedIdleLoopStarted = false;
 let pendingManualCloseAudio = false;
 const activeRandomAudioMedia = new Set();
 const cyclicLayers = [];
@@ -514,6 +519,7 @@ function installControlButton() {
 
 function setClosed(closed, options = {}) {
   if (manualCloseAudioLocked && !closed) return;
+  if (!closed) stopManualClosedIdleLoop();
   targetClosed = Boolean(closed);
   updateControlButton();
   const start = progress;
@@ -736,11 +742,49 @@ function finishBlackHoleSequence() {
   setBlackHoleRandomAudioBlocked(false);
 }
 
-function releaseManualCloseAudioLock() {
+function canPlayManualClosedIdleLoop() {
+  return targetClosed && !gateActivityActive && blackHoleConnectionId === null;
+}
+
+function stopManualClosedIdleLoop() {
+  if (!manualClosedIdleLoopAudio) return;
+  manualClosedIdleLoopAudio.pause();
+  manualClosedIdleLoopAudio.currentTime = 0;
+  manualClosedIdleLoopAudio = null;
+  manualClosedIdleLoopStarted = false;
+}
+
+function prepareManualClosedIdleLoop() {
+  if (manualClosedIdleLoopAudio) return manualClosedIdleLoopAudio;
+  manualClosedIdleLoopAudio = new Audio(
+    getIrisSoundBase() + IRIS_AUDIO_FILES.manualClosedIdleLoop,
+  );
+  manualClosedIdleLoopAudio.preload = 'auto';
+  manualClosedIdleLoopAudio.volume = 1;
+  manualClosedIdleLoopAudio.loop = true;
+  manualClosedIdleLoopAudio.load();
+  return manualClosedIdleLoopAudio;
+}
+
+function playManualClosedIdleLoop() {
+  if (!canPlayManualClosedIdleLoop()) return;
+  if (manualClosedIdleLoopStarted) return;
+  manualClosedIdleLoopStarted = true;
+  const audio = prepareManualClosedIdleLoop();
+  audio.currentTime = 0;
+  if (manualClosedIdleLoopAudio && !manualClosedIdleLoopAudio.paused) return;
+  audio.play().catch(error => {
+    manualClosedIdleLoopStarted = false;
+    console.debug('[sg1-iris] Iris manual idle loop audio failed', error);
+  });
+}
+
+function releaseManualCloseAudioLock(startIdleLoop = false) {
   clearTimeout(manualCloseAudioTimer);
   manualCloseAudioTimer = null;
   manualCloseAudioLocked = false;
   setManualIrisAudioBlocked(false);
+  if (startIdleLoop) playManualClosedIdleLoop();
 }
 
 function clearBlackHoleSequence() {
@@ -771,19 +815,32 @@ function playAudioFile(file, existingAudio = null) {
 }
 
 function playManualCloseAudio() {
+  stopManualClosedIdleLoop();
   manualCloseAudioLocked = true;
   setManualIrisAudioBlocked(true);
+  prepareManualClosedIdleLoop();
   manualCloseAudio = playAudioFile(IRIS_AUDIO_FILES.manualClose, manualCloseAudio);
+  const startLoopNearEnd = () => {
+    if (!manualCloseAudio || !Number.isFinite(manualCloseAudio.duration)) return;
+    const remaining = manualCloseAudio.duration - manualCloseAudio.currentTime;
+    if (remaining <= IRIS_MANUAL_LOOP_CROSSFADE_SECONDS) {
+      manualCloseAudio.removeEventListener('timeupdate', startLoopNearEnd);
+      playManualClosedIdleLoop();
+    }
+  };
+  manualCloseAudio.addEventListener('timeupdate', startLoopNearEnd);
   manualCloseAudio.addEventListener(
     'ended',
     () => {
+      manualCloseAudio.removeEventListener('timeupdate', startLoopNearEnd);
       if (manualCloseAudio) manualCloseAudio = null;
-      releaseManualCloseAudioLock();
+      playManualClosedIdleLoop();
+      releaseManualCloseAudioLock(true);
     },
     {once: true},
   );
   manualCloseAudioTimer = setTimeout(
-    releaseManualCloseAudioLock,
+    () => releaseManualCloseAudioLock(true),
     IRIS_MANUAL_CLOSE_AUDIO_DURATION_MS + IRIS_AUDIO_LOCK_PAD_MS,
   );
 }
@@ -933,6 +990,8 @@ function syncGateStatus(status) {
     && !connectionActive
     && incomingAddress.length === 0
     && lockedIncoming === 0;
+  gateActivityActive = !idle;
+  if (gateActivityActive) stopManualClosedIdleLoop();
 
   document.documentElement.classList.toggle('iris-incoming', incoming);
   document.documentElement.classList.toggle(
