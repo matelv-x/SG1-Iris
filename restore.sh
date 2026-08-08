@@ -94,12 +94,15 @@ while [ -e "$BACKUP_DIR" ]; do
 done
 
 if [ "$DRY_RUN" -eq 0 ]; then
-  mkdir -p "$BACKUP_DIR/retro/js" "$BACKUP_DIR/retro/css"
+  mkdir -p "$BACKUP_DIR/retro/js" "$BACKUP_DIR/retro/css" "$BACKUP_DIR/soundfx"
   cp "$RETRO_DIR/dial.html" "$BACKUP_DIR/retro/dial.html"
   cp "$RETRO_DIR/dial9.html" "$BACKUP_DIR/retro/dial9.html"
   cp "$RETRO_DIR/js/dial.js" "$BACKUP_DIR/retro/js/dial.js"
   [ -f "$RETRO_DIR/js/iris.js" ] && cp "$RETRO_DIR/js/iris.js" "$BACKUP_DIR/retro/js/iris.js" || true
   [ -f "$RETRO_DIR/css/iris.css" ] && cp "$RETRO_DIR/css/iris.css" "$BACKUP_DIR/retro/css/iris.css" || true
+  [ -d "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM" ] \
+    && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM" "$BACKUP_DIR/soundfx/EOverM" \
+    || true
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -125,6 +128,29 @@ if [ -f "$IRIS_AUDIO_MARKER" ]; then
   fi
 elif [ -e "$IRIS_AUDIO_FILE" ]; then
   echo "preserving unmanaged audio file: $IRIS_AUDIO_FILE"
+fi
+
+EOVERM_AUDIO_DIR="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM"
+EOVERM_AUDIO_FILES=(
+  "Iris Open.m4a"
+  "Iris Close.mp3"
+  "Iris Impact.m4a"
+)
+
+for audio_file in "${EOVERM_AUDIO_FILES[@]}"; do
+  path="$EOVERM_AUDIO_DIR/$audio_file"
+  if [ -f "$path" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "would remove Iris audio: $path"
+    else
+      rm -f "$path"
+      echo "removed Iris audio: $path"
+    fi
+  fi
+done
+
+if [ "$DRY_RUN" -eq 0 ] && [ -d "$EOVERM_AUDIO_DIR" ]; then
+  rmdir "$EOVERM_AUDIO_DIR" 2>/dev/null || true
 fi
 
 if [ "$DRY_RUN" -eq 1 ]; then

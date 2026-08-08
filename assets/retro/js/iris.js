@@ -1,7 +1,14 @@
 /* SG1 IRIS ADDON ASSET — managed by install.sh / restore.sh */
 const TAU = Math.PI * 2;
 const BLADE_COUNT = 22;
-const DURATION = 1100;
+const IRIS_OPEN_DURATION_MS = 3922;
+const IRIS_CLOSE_DURATION_MS = 5238;
+const IRIS_MIN_PARTIAL_DURATION_MS = 180;
+const IRIS_AUDIO_FILES = {
+  open: 'audio_clips/Iris/EOverM/Iris Open.m4a',
+  close: 'audio_clips/Iris/EOverM/Iris Close.mp3',
+  impact: 'audio_clips/Iris/EOverM/Iris Impact.m4a',
+};
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
@@ -43,6 +50,9 @@ let blackHoleAudioTimer = null;
 let blackHoleCloseTimer = null;
 let blackHoleWarningAudio = null;
 let blackHoleRandomAudioBlocked = false;
+let irisMotionAudio = null;
+let irisImpactAudio = null;
+let lastImpactConnectionId = null;
 const cyclicLayers = [];
 
 function polar(radius, angle) {
@@ -500,13 +510,35 @@ function setClosed(closed) {
   const start = progress;
   const end = targetClosed ? 1 : 0;
   const distance = Math.abs(end - start);
+  if (distance < 0.001) {
+    progress = end;
+    draw();
+    document.dispatchEvent(
+      new CustomEvent('iris:state', {
+        detail: { closed: targetClosed },
+      }),
+    );
+    return;
+  }
+
+  playIrisMotionAudio(targetClosed);
+
   const startedAt = performance.now();
-  const duration = Math.max(180, DURATION * distance);
+  const fullDuration = targetClosed
+    ? IRIS_CLOSE_DURATION_MS
+    : IRIS_OPEN_DURATION_MS;
+  const totalDuration = Math.max(
+    IRIS_MIN_PARTIAL_DURATION_MS,
+    fullDuration * distance,
+  );
   const pauseAt = 2 / 3;
-  const pauseDuration = 1000;
   const pauseOnClosing = targetClosed && start < pauseAt;
   const pauseOnOpening = !targetClosed && start > pauseAt;
   const pauseDuringTransition = pauseOnClosing || pauseOnOpening;
+  const pauseDuration = pauseDuringTransition
+    ? Math.min(1000, totalDuration * 0.22)
+    : 0;
+  const duration = Math.max(1, totalDuration - pauseDuration);
   const firstStageDistance = pauseOnClosing
     ? pauseAt - start
     : pauseOnOpening
@@ -646,13 +678,56 @@ function clearBlackHoleSequence() {
   blackHoleClosureIssued = false;
 }
 
+function getIrisSoundBase() {
+  return window.location.pathname.startsWith('/fan113/')
+    ? '/fan113/soundfx/milkyway/'
+    : '/soundfx/milkyway/';
+}
+
+function playAudioFile(file, existingAudio = null) {
+  if (existingAudio) {
+    existingAudio.pause();
+    existingAudio.currentTime = 0;
+  }
+
+  const audio = new Audio(getIrisSoundBase() + file);
+  audio.preload = 'auto';
+  audio.volume = 1;
+  audio.play().catch(error => {
+    console.debug('[sg1-iris] Iris audio failed', error);
+  });
+  return audio;
+}
+
+function playIrisMotionAudio(closing) {
+  irisMotionAudio = playAudioFile(
+    closing ? IRIS_AUDIO_FILES.close : IRIS_AUDIO_FILES.open,
+    irisMotionAudio,
+  );
+}
+
+function getImpactConnectionId(status) {
+  return String(
+    status.wormhole_open_time
+    || status.connected_planet
+    || status.wormhole_active
+    || status.incoming_planet
+    || 'active',
+  );
+}
+
+function playIrisImpact(status) {
+  if (!targetClosed) return;
+  const connectionId = getImpactConnectionId(status);
+  if (lastImpactConnectionId === connectionId) return;
+  lastImpactConnectionId = connectionId;
+  irisImpactAudio = playAudioFile(IRIS_AUDIO_FILES.impact, irisImpactAudio);
+}
+
 function prepareBlackHoleWarning() {
   if (blackHoleWarningAudio) return blackHoleWarningAudio;
 
-  const soundBase = window.location.pathname.startsWith('/fan113/')
-    ? '/fan113/soundfx/milkyway/'
-    : '/soundfx/milkyway/';
-  const audio = new Audio(soundBase + BLACK_HOLE_WARNING_FILE);
+  const audio = new Audio(getIrisSoundBase() + BLACK_HOLE_WARNING_FILE);
   audio.preload = 'auto';
   audio.volume = 1;
   blackHoleWarningAudio = audio;
@@ -796,6 +871,7 @@ function syncGateStatus(status) {
   // the Iris close command at forty-five seconds. This Audio instance is
   // isolated from SG1's normal browser audio flow and is discarded afterward.
   if (blackHoleConnected) {
+    if (targetClosed) playIrisImpact(status);
     scheduleBlackHoleSequence(status);
     return;
   } else if (blackHoleConnectionId !== null) {
@@ -831,6 +907,12 @@ function syncGateStatus(status) {
     setClosed(false);
   } else if (idle) {
     manualOpenDuringIncoming = false;
+  }
+
+  if (targetClosed && connectionActive) {
+    playIrisImpact(status);
+  } else if (!connectionActive) {
+    lastImpactConnectionId = null;
   }
 }
 

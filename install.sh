@@ -18,6 +18,7 @@ Compatible targets:
 
 What it changes:
   - copies retro/js/iris.js and retro/css/iris.css
+  - copies Iris audio clips into soundfx/milkyway/audio_clips/Iris/EOverM
   - injects marked CSS/JS hooks into dial.html and dial9.html
   - iris.js reads gate status directly, so retro/js/dial.js is not modified
   - removes the old marked dial.js hook from earlier Iris versions when found
@@ -98,6 +99,7 @@ need_file() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ASSET_DIR="$SCRIPT_DIR/assets/retro"
+SOUNDFX_ASSET_DIR="$SCRIPT_DIR/assets/soundfx"
 resolve_retro_dir "$TARGET"
 find_sg1_root
 
@@ -140,12 +142,15 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "  to:   $IRIS_AUDIO_FILE"
   fi
 else
-  mkdir -p "$BACKUP_DIR/retro/js" "$BACKUP_DIR/retro/css"
+  mkdir -p "$BACKUP_DIR/retro/js" "$BACKUP_DIR/retro/css" "$BACKUP_DIR/soundfx"
   cp "$RETRO_DIR/dial.html" "$BACKUP_DIR/retro/dial.html"
   cp "$RETRO_DIR/dial9.html" "$BACKUP_DIR/retro/dial9.html"
   [ -f "$RETRO_DIR/js/dial.js" ] && cp "$RETRO_DIR/js/dial.js" "$BACKUP_DIR/retro/js/dial.js" || true
   [ -f "$RETRO_DIR/js/iris.js" ] && cp "$RETRO_DIR/js/iris.js" "$BACKUP_DIR/retro/js/iris.js" || true
   [ -f "$RETRO_DIR/css/iris.css" ] && cp "$RETRO_DIR/css/iris.css" "$BACKUP_DIR/retro/css/iris.css" || true
+  [ -d "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM" ] \
+    && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM" "$BACKUP_DIR/soundfx/EOverM" \
+    || true
 
   cp "$ASSET_DIR/js/iris.js" "$RETRO_DIR/js/iris.js"
   cp "$ASSET_DIR/css/iris.css" "$RETRO_DIR/css/iris.css"
@@ -155,6 +160,11 @@ else
     mv "$BLACK_HOLE_SOURCE" "$IRIS_AUDIO_FILE"
     printf '%s\n' "SG1 Iris managed audio asset" > "$IRIS_AUDIO_MARKER"
     echo "moved dedicated Black Hole warning: $IRIS_AUDIO_FILE"
+  fi
+
+  if [ -d "$SOUNDFX_ASSET_DIR" ]; then
+    mkdir -p "$SG1_ROOT/soundfx"
+    cp -a "$SOUNDFX_ASSET_DIR"/. "$SG1_ROOT/soundfx"/
   fi
 fi
 
@@ -174,11 +184,11 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260804-black-hole-manual-reopen" />
+    <link rel="stylesheet" href="css/iris.css?v=20260808-eoverm-audio" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
-    <script type="module" src="js/iris.js?v=20260804-black-hole-manual-reopen"></script>
+    <script type="module" src="js/iris.js?v=20260808-eoverm-audio"></script>
     {JS_END}"""
 
 def remove_existing_hooks(text: str) -> str:
