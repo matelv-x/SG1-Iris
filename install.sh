@@ -18,7 +18,7 @@ Compatible targets:
 
 What it changes:
   - copies retro/js/iris.js and retro/css/iris.css
-  - copies Iris audio clips into soundfx/milkyway/audio_clips/Iris/EOverM
+  - copies Iris audio clips into soundfx/milkyway/audio_clips/Iris
   - injects marked CSS/JS hooks into dial.html and dial9.html
   - iris.js reads gate status directly, so retro/js/dial.js is not modified
   - removes the old marked dial.js hook from earlier Iris versions when found
@@ -148,9 +148,11 @@ else
   [ -f "$RETRO_DIR/js/dial.js" ] && cp "$RETRO_DIR/js/dial.js" "$BACKUP_DIR/retro/js/dial.js" || true
   [ -f "$RETRO_DIR/js/iris.js" ] && cp "$RETRO_DIR/js/iris.js" "$BACKUP_DIR/retro/js/iris.js" || true
   [ -f "$RETRO_DIR/css/iris.css" ] && cp "$RETRO_DIR/css/iris.css" "$BACKUP_DIR/retro/css/iris.css" || true
-  [ -d "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM" ] \
-    && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/EOverM" "$BACKUP_DIR/soundfx/EOverM" \
-    || true
+  for iris_clip in "Iris Open.m4a" "Iris Close.mp3" "Iris Impact.m4a"; do
+    [ -f "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" ] \
+      && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" "$BACKUP_DIR/soundfx/$iris_clip" \
+      || true
+  done
 
   cp "$ASSET_DIR/js/iris.js" "$RETRO_DIR/js/iris.js"
   cp "$ASSET_DIR/css/iris.css" "$RETRO_DIR/css/iris.css"

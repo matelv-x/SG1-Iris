@@ -5,10 +5,12 @@ const IRIS_OPEN_DURATION_MS = 3922;
 const IRIS_CLOSE_DURATION_MS = 5238;
 const IRIS_MIN_PARTIAL_DURATION_MS = 180;
 const IRIS_AUDIO_FILES = {
-  open: 'audio_clips/Iris/EOverM/Iris Open.m4a',
-  close: 'audio_clips/Iris/EOverM/Iris Close.mp3',
-  impact: 'audio_clips/Iris/EOverM/Iris Impact.m4a',
+  open: 'audio_clips/Iris/Iris Open.m4a',
+  close: 'audio_clips/Iris/Iris Close.mp3',
+  impact: 'audio_clips/Iris/Iris Impact.m4a',
 };
+const IRIS_IMPACT_DURATION_MS = 1164;
+const IRIS_AUDIO_LOCK_PAD_MS = 250;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
@@ -50,9 +52,12 @@ let blackHoleAudioTimer = null;
 let blackHoleCloseTimer = null;
 let blackHoleWarningAudio = null;
 let blackHoleRandomAudioBlocked = false;
+let irisRandomAudioBlocked = false;
+let irisRandomAudioTimer = null;
 let irisMotionAudio = null;
 let irisImpactAudio = null;
 let lastImpactConnectionId = null;
+const activeRandomAudioMedia = new Set();
 const cyclicLayers = [];
 
 function polar(radius, angle) {
@@ -617,23 +622,54 @@ function isRandomAudioClip(media) {
 
   const normalized = path.toLowerCase();
   const randomClip = normalized.includes('/audio_clips/');
-  const dedicatedIrisWarning = normalized.includes(
-    '/audio_clips/iris/black_hole/outgoing wormhole.wav',
+  const irisManagedClip = normalized.includes('/audio_clips/iris/');
+  return randomClip && !irisManagedClip;
+}
+
+function isRandomAudioBlocked() {
+  return blackHoleRandomAudioBlocked || irisRandomAudioBlocked;
+}
+
+function pauseActiveRandomAudio() {
+  activeRandomAudioMedia.forEach(media => {
+    try {
+      media.pause();
+      media.currentTime = 0;
+    } catch (error) {
+      console.debug('[sg1-iris] Random audio pause failed', error);
+    }
+  });
+  activeRandomAudioMedia.clear();
+}
+
+function updateRandomAudioBlockState() {
+  const blocked = isRandomAudioBlocked();
+  document.documentElement.classList.toggle(
+    'iris-random-audio-blocked',
+    blocked,
   );
-  return randomClip && !dedicatedIrisWarning;
+  if (blocked) pauseActiveRandomAudio();
+  document.dispatchEvent(
+    new CustomEvent('iris:random-audio-lock', {
+      detail: {blocked},
+    }),
+  );
 }
 
 function setBlackHoleRandomAudioBlocked(blocked) {
   blackHoleRandomAudioBlocked = Boolean(blocked);
-  document.documentElement.classList.toggle(
-    'iris-random-audio-blocked',
-    blackHoleRandomAudioBlocked,
-  );
-  document.dispatchEvent(
-    new CustomEvent('iris:random-audio-lock', {
-      detail: {blocked: blackHoleRandomAudioBlocked},
-    }),
-  );
+  updateRandomAudioBlockState();
+}
+
+function setIrisRandomAudioBlockedFor(durationMs) {
+  clearTimeout(irisRandomAudioTimer);
+  irisRandomAudioBlocked = true;
+  updateRandomAudioBlockState();
+  irisRandomAudioTimer = setTimeout(() => {
+    irisRandomAudioTimer = null;
+    irisRandomAudioBlocked = false;
+    updateRandomAudioBlockState();
+  }, Math.max(0, durationMs));
 }
 
 function installRandomAudioGuard() {
@@ -642,7 +678,8 @@ function installRandomAudioGuard() {
 
   const nativePlay = mediaPrototype.play;
   mediaPrototype.play = function guardedIrisAudioPlay(...args) {
-    if (blackHoleRandomAudioBlocked && isRandomAudioClip(this)) {
+    const randomClip = isRandomAudioClip(this);
+    if (isRandomAudioBlocked() && randomClip) {
       try {
         this.pause();
         this.currentTime = 0;
@@ -651,7 +688,14 @@ function installRandomAudioGuard() {
       }
       return Promise.resolve();
     }
-    return nativePlay.apply(this, args);
+    const result = nativePlay.apply(this, args);
+    if (randomClip) {
+      activeRandomAudioMedia.add(this);
+      const remove = () => activeRandomAudioMedia.delete(this);
+      this.addEventListener('pause', remove, {once: true});
+      this.addEventListener('ended', remove, {once: true});
+    }
+    return result;
   };
   window.__sg1IrisRandomAudioGuardInstalled = true;
 }
@@ -666,8 +710,11 @@ function stopBlackHoleWarning() {
 function finishBlackHoleSequence() {
   clearTimeout(blackHoleAudioTimer);
   clearTimeout(blackHoleCloseTimer);
+  clearTimeout(irisRandomAudioTimer);
   blackHoleAudioTimer = null;
   blackHoleCloseTimer = null;
+  irisRandomAudioTimer = null;
+  irisRandomAudioBlocked = false;
   stopBlackHoleWarning();
   setBlackHoleRandomAudioBlocked(false);
 }
@@ -700,6 +747,8 @@ function playAudioFile(file, existingAudio = null) {
 }
 
 function playIrisMotionAudio(closing) {
+  const duration = closing ? IRIS_CLOSE_DURATION_MS : IRIS_OPEN_DURATION_MS;
+  setIrisRandomAudioBlockedFor(duration + IRIS_AUDIO_LOCK_PAD_MS);
   irisMotionAudio = playAudioFile(
     closing ? IRIS_AUDIO_FILES.close : IRIS_AUDIO_FILES.open,
     irisMotionAudio,
@@ -721,6 +770,7 @@ function playIrisImpact(status) {
   const connectionId = getImpactConnectionId(status);
   if (lastImpactConnectionId === connectionId) return;
   lastImpactConnectionId = connectionId;
+  setIrisRandomAudioBlockedFor(IRIS_IMPACT_DURATION_MS + IRIS_AUDIO_LOCK_PAD_MS);
   irisImpactAudio = playAudioFile(IRIS_AUDIO_FILES.impact, irisImpactAudio);
 }
 
