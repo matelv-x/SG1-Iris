@@ -7,7 +7,9 @@ const IRIS_MIN_PARTIAL_DURATION_MS = 180;
 const IRIS_AUDIO_FILES = {
   open: 'audio_clips/Iris/Iris Open.m4a',
   close: 'audio_clips/Iris/Iris Close.mp3',
+  manualClose: "audio_clips/Iris/Manual_Open_Iris/it's gonna hold.mp3",
 };
+const IRIS_MANUAL_CLOSE_AUDIO_DURATION_MS = 20036;
 const IRIS_AUDIO_LOCK_PAD_MS = 250;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
@@ -51,8 +53,13 @@ let blackHoleCloseTimer = null;
 let blackHoleWarningAudio = null;
 let blackHoleRandomAudioBlocked = false;
 let irisRandomAudioBlocked = false;
+let manualIrisAudioBlocked = false;
 let irisRandomAudioTimer = null;
 let irisMotionAudio = null;
+let manualCloseAudio = null;
+let manualCloseAudioLocked = false;
+let manualCloseAudioTimer = null;
+let pendingManualCloseAudio = false;
 const activeRandomAudioMedia = new Set();
 const cyclicLayers = [];
 
@@ -505,12 +512,14 @@ function installControlButton() {
   return true;
 }
 
-function setClosed(closed) {
+function setClosed(closed, options = {}) {
+  if (manualCloseAudioLocked && !closed) return;
   targetClosed = Boolean(closed);
   updateControlButton();
   const start = progress;
   const end = targetClosed ? 1 : 0;
   const distance = Math.abs(end - start);
+  const manualClose = targetClosed && options.manual === true;
   if (distance < 0.001) {
     progress = end;
     draw();
@@ -519,9 +528,11 @@ function setClosed(closed) {
         detail: { closed: targetClosed },
       }),
     );
+    if (manualClose) playManualCloseAudio();
     return;
   }
 
+  pendingManualCloseAudio = manualClose;
   playIrisMotionAudio(targetClosed);
 
   const startedAt = performance.now();
@@ -590,6 +601,10 @@ function setClosed(closed) {
           detail: { closed: targetClosed },
         }),
       );
+      if (targetClosed && pendingManualCloseAudio) {
+        pendingManualCloseAudio = false;
+        playManualCloseAudio();
+      }
     }
   }
 
@@ -597,6 +612,7 @@ function setClosed(closed) {
 }
 
 function toggle() {
+  if (manualCloseAudioLocked && targetClosed) return;
   autoClosed = false;
   localStorage.removeItem(AUTO_CLOSED_STORAGE_KEY);
   if (targetClosed && document.documentElement.classList.contains('iris-incoming')) {
@@ -604,7 +620,7 @@ function toggle() {
   } else {
     manualOpenDuringIncoming = false;
   }
-  setClosed(!targetClosed);
+  setClosed(!targetClosed, {manual: true});
 }
 
 function isRandomAudioClip(media) {
@@ -623,7 +639,7 @@ function isRandomAudioClip(media) {
 }
 
 function isRandomAudioBlocked() {
-  return blackHoleRandomAudioBlocked || irisRandomAudioBlocked;
+  return blackHoleRandomAudioBlocked || irisRandomAudioBlocked || manualIrisAudioBlocked;
 }
 
 function pauseActiveRandomAudio() {
@@ -666,6 +682,11 @@ function setIrisRandomAudioBlockedFor(durationMs) {
     irisRandomAudioBlocked = false;
     updateRandomAudioBlockState();
   }, Math.max(0, durationMs));
+}
+
+function setManualIrisAudioBlocked(blocked) {
+  manualIrisAudioBlocked = Boolean(blocked);
+  updateRandomAudioBlockState();
 }
 
 function installRandomAudioGuard() {
@@ -715,6 +736,13 @@ function finishBlackHoleSequence() {
   setBlackHoleRandomAudioBlocked(false);
 }
 
+function releaseManualCloseAudioLock() {
+  clearTimeout(manualCloseAudioTimer);
+  manualCloseAudioTimer = null;
+  manualCloseAudioLocked = false;
+  setManualIrisAudioBlocked(false);
+}
+
 function clearBlackHoleSequence() {
   finishBlackHoleSequence();
   blackHoleConnectionId = null;
@@ -740,6 +768,24 @@ function playAudioFile(file, existingAudio = null) {
     console.debug('[sg1-iris] Iris audio failed', error);
   });
   return audio;
+}
+
+function playManualCloseAudio() {
+  manualCloseAudioLocked = true;
+  setManualIrisAudioBlocked(true);
+  manualCloseAudio = playAudioFile(IRIS_AUDIO_FILES.manualClose, manualCloseAudio);
+  manualCloseAudio.addEventListener(
+    'ended',
+    () => {
+      if (manualCloseAudio) manualCloseAudio = null;
+      releaseManualCloseAudioLock();
+    },
+    {once: true},
+  );
+  manualCloseAudioTimer = setTimeout(
+    releaseManualCloseAudioLock,
+    IRIS_MANUAL_CLOSE_AUDIO_DURATION_MS + IRIS_AUDIO_LOCK_PAD_MS,
+  );
 }
 
 function playIrisMotionAudio(closing) {

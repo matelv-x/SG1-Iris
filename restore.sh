@@ -105,6 +105,11 @@ if [ "$DRY_RUN" -eq 0 ]; then
       && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" "$BACKUP_DIR/soundfx/$iris_clip" \
       || true
   done
+  manual_hold_clip="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/Manual_Open_Iris/it's gonna hold.mp3"
+  if [ -f "$manual_hold_clip" ]; then
+    mkdir -p "$BACKUP_DIR/soundfx/Manual_Open_Iris"
+    cp -a "$manual_hold_clip" "$BACKUP_DIR/soundfx/Manual_Open_Iris/it's gonna hold.mp3"
+  fi
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -149,6 +154,19 @@ for audio_file in "${IRIS_ROOT_AUDIO_FILES[@]}"; do
     fi
   fi
 done
+
+MANUAL_HOLD_DIR="$IRIS_ROOT_AUDIO_DIR/Manual_Open_Iris"
+MANUAL_HOLD_FILE="$MANUAL_HOLD_DIR/it's gonna hold.mp3"
+if [ -f "$MANUAL_HOLD_FILE" ]; then
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "would remove manual Iris hold audio: $MANUAL_HOLD_FILE"
+  else
+    rm -f "$MANUAL_HOLD_FILE"
+    echo "removed manual Iris hold audio: $MANUAL_HOLD_FILE"
+    rmdir "$MANUAL_HOLD_DIR" 2>/dev/null || true
+    rmdir "$IRIS_ROOT_AUDIO_DIR" 2>/dev/null || true
+  fi
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "Dry run completed. No files were changed."

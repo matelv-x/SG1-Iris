@@ -29,6 +29,8 @@ What it changes:
     P3W-451 (Black Hole) connection is established
   - blocks only random audio_clips before the iris closes, allows the dedicated
     Iris warning, then restores random audio playback after closure
+  - plays the optional manual-close hold clip only after a user closes the iris
+    with the menu button or Ctrl+I; automatic Black Hole closures do not use it
   - preserves existing Retro rings, symbols, chevrons and other add-ons
   - creates a timestamped backup before editing
   - can be safely re-run without duplicate hooks
@@ -153,6 +155,11 @@ else
       && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" "$BACKUP_DIR/soundfx/$iris_clip" \
       || true
   done
+  manual_hold_clip="$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/Manual_Open_Iris/it's gonna hold.mp3"
+  if [ -f "$manual_hold_clip" ]; then
+    mkdir -p "$BACKUP_DIR/soundfx/Manual_Open_Iris"
+    cp -a "$manual_hold_clip" "$BACKUP_DIR/soundfx/Manual_Open_Iris/it's gonna hold.mp3"
+  fi
 
   cp "$ASSET_DIR/js/iris.js" "$RETRO_DIR/js/iris.js"
   cp "$ASSET_DIR/css/iris.css" "$RETRO_DIR/css/iris.css"
@@ -186,11 +193,11 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260808-eoverm-audio" />
+    <link rel="stylesheet" href="css/iris.css?v=20260808-manual-close-hold" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
-    <script type="module" src="js/iris.js?v=20260808-eoverm-audio"></script>
+    <script type="module" src="js/iris.js?v=20260808-manual-close-hold"></script>
     {JS_END}"""
 
 def remove_existing_hooks(text: str) -> str:
