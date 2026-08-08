@@ -12,7 +12,7 @@ const IRIS_AUDIO_FILES = {
 };
 const IRIS_MANUAL_CLOSE_AUDIO_DURATION_MS = 20036;
 const IRIS_AUDIO_LOCK_PAD_MS = 250;
-const IRIS_MANUAL_LOOP_CROSSFADE_SECONDS = 0.08;
+const IRIS_MANUAL_AUDIO_CROSSFADE_SECONDS = 0.08;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
@@ -539,7 +539,7 @@ function setClosed(closed, options = {}) {
   }
 
   pendingManualCloseAudio = manualClose;
-  playIrisMotionAudio(targetClosed);
+  playIrisMotionAudio(targetClosed, {manualClose});
 
   const startedAt = performance.now();
   const fullDuration = targetClosed
@@ -766,6 +766,15 @@ function prepareManualClosedIdleLoop() {
   return manualClosedIdleLoopAudio;
 }
 
+function prepareManualCloseAudio() {
+  if (manualCloseAudio) return manualCloseAudio;
+  manualCloseAudio = new Audio(getIrisSoundBase() + IRIS_AUDIO_FILES.manualClose);
+  manualCloseAudio.preload = 'auto';
+  manualCloseAudio.volume = 1;
+  manualCloseAudio.load();
+  return manualCloseAudio;
+}
+
 function playManualClosedIdleLoop() {
   if (!canPlayManualClosedIdleLoop()) return;
   if (manualClosedIdleLoopStarted) return;
@@ -815,43 +824,69 @@ function playAudioFile(file, existingAudio = null) {
 }
 
 function playManualCloseAudio() {
+  if (manualCloseAudioLocked) return;
   stopManualClosedIdleLoop();
   manualCloseAudioLocked = true;
   setManualIrisAudioBlocked(true);
   prepareManualClosedIdleLoop();
-  manualCloseAudio = playAudioFile(IRIS_AUDIO_FILES.manualClose, manualCloseAudio);
+  const audio = prepareManualCloseAudio();
+  audio.currentTime = 0;
   const startLoopNearEnd = () => {
-    if (!manualCloseAudio || !Number.isFinite(manualCloseAudio.duration)) return;
-    const remaining = manualCloseAudio.duration - manualCloseAudio.currentTime;
-    if (remaining <= IRIS_MANUAL_LOOP_CROSSFADE_SECONDS) {
-      manualCloseAudio.removeEventListener('timeupdate', startLoopNearEnd);
+    if (!manualCloseAudio || !Number.isFinite(audio.duration)) return;
+    const remaining = audio.duration - audio.currentTime;
+    if (remaining <= IRIS_MANUAL_AUDIO_CROSSFADE_SECONDS) {
+      audio.removeEventListener('timeupdate', startLoopNearEnd);
       playManualClosedIdleLoop();
     }
   };
-  manualCloseAudio.addEventListener('timeupdate', startLoopNearEnd);
-  manualCloseAudio.addEventListener(
+  audio.addEventListener('timeupdate', startLoopNearEnd);
+  audio.addEventListener(
     'ended',
     () => {
-      manualCloseAudio.removeEventListener('timeupdate', startLoopNearEnd);
+      audio.removeEventListener('timeupdate', startLoopNearEnd);
       if (manualCloseAudio) manualCloseAudio = null;
       playManualClosedIdleLoop();
       releaseManualCloseAudioLock(true);
     },
     {once: true},
   );
+  audio.play().catch(error => {
+    console.debug('[sg1-iris] Iris manual close audio failed', error);
+  });
   manualCloseAudioTimer = setTimeout(
     () => releaseManualCloseAudioLock(true),
     IRIS_MANUAL_CLOSE_AUDIO_DURATION_MS + IRIS_AUDIO_LOCK_PAD_MS,
   );
 }
 
-function playIrisMotionAudio(closing) {
+function playIrisMotionAudio(closing, options = {}) {
   const duration = closing ? IRIS_CLOSE_DURATION_MS : IRIS_OPEN_DURATION_MS;
   setIrisRandomAudioBlockedFor(duration + IRIS_AUDIO_LOCK_PAD_MS);
   irisMotionAudio = playAudioFile(
     closing ? IRIS_AUDIO_FILES.close : IRIS_AUDIO_FILES.open,
     irisMotionAudio,
   );
+  if (closing && options.manualClose) {
+    prepareManualCloseAudio();
+    prepareManualClosedIdleLoop();
+    const startHoldNearEnd = () => {
+      if (!irisMotionAudio || !Number.isFinite(irisMotionAudio.duration)) return;
+      const remaining = irisMotionAudio.duration - irisMotionAudio.currentTime;
+      if (remaining <= IRIS_MANUAL_AUDIO_CROSSFADE_SECONDS) {
+        irisMotionAudio.removeEventListener('timeupdate', startHoldNearEnd);
+        playManualCloseAudio();
+      }
+    };
+    irisMotionAudio.addEventListener('timeupdate', startHoldNearEnd);
+    irisMotionAudio.addEventListener(
+      'ended',
+      () => {
+        irisMotionAudio.removeEventListener('timeupdate', startHoldNearEnd);
+        playManualCloseAudio();
+      },
+      {once: true},
+    );
+  }
 }
 
 function prepareBlackHoleWarning() {
