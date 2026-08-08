@@ -148,7 +148,7 @@ else
   [ -f "$RETRO_DIR/js/dial.js" ] && cp "$RETRO_DIR/js/dial.js" "$BACKUP_DIR/retro/js/dial.js" || true
   [ -f "$RETRO_DIR/js/iris.js" ] && cp "$RETRO_DIR/js/iris.js" "$BACKUP_DIR/retro/js/iris.js" || true
   [ -f "$RETRO_DIR/css/iris.css" ] && cp "$RETRO_DIR/css/iris.css" "$BACKUP_DIR/retro/css/iris.css" || true
-  for iris_clip in "Iris Open.m4a" "Iris Close.mp3" "Iris Impact.m4a"; do
+  for iris_clip in "Iris Open.m4a" "Iris Close.mp3"; do
     [ -f "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" ] \
       && cp -a "$SG1_ROOT/soundfx/milkyway/audio_clips/Iris/$iris_clip" "$BACKUP_DIR/soundfx/$iris_clip" \
       || true

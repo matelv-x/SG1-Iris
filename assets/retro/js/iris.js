@@ -7,9 +7,7 @@ const IRIS_MIN_PARTIAL_DURATION_MS = 180;
 const IRIS_AUDIO_FILES = {
   open: 'audio_clips/Iris/Iris Open.m4a',
   close: 'audio_clips/Iris/Iris Close.mp3',
-  impact: 'audio_clips/Iris/Iris Impact.m4a',
 };
-const IRIS_IMPACT_DURATION_MS = 1164;
 const IRIS_AUDIO_LOCK_PAD_MS = 250;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
@@ -55,8 +53,6 @@ let blackHoleRandomAudioBlocked = false;
 let irisRandomAudioBlocked = false;
 let irisRandomAudioTimer = null;
 let irisMotionAudio = null;
-let irisImpactAudio = null;
-let lastImpactConnectionId = null;
 const activeRandomAudioMedia = new Set();
 const cyclicLayers = [];
 
@@ -755,25 +751,6 @@ function playIrisMotionAudio(closing) {
   );
 }
 
-function getImpactConnectionId(status) {
-  return String(
-    status.wormhole_open_time
-    || status.connected_planet
-    || status.wormhole_active
-    || status.incoming_planet
-    || 'active',
-  );
-}
-
-function playIrisImpact(status) {
-  if (!targetClosed) return;
-  const connectionId = getImpactConnectionId(status);
-  if (lastImpactConnectionId === connectionId) return;
-  lastImpactConnectionId = connectionId;
-  setIrisRandomAudioBlockedFor(IRIS_IMPACT_DURATION_MS + IRIS_AUDIO_LOCK_PAD_MS);
-  irisImpactAudio = playAudioFile(IRIS_AUDIO_FILES.impact, irisImpactAudio);
-}
-
 function prepareBlackHoleWarning() {
   if (blackHoleWarningAudio) return blackHoleWarningAudio;
 
@@ -921,7 +898,6 @@ function syncGateStatus(status) {
   // the Iris close command at forty-five seconds. This Audio instance is
   // isolated from SG1's normal browser audio flow and is discarded afterward.
   if (blackHoleConnected) {
-    if (targetClosed) playIrisImpact(status);
     scheduleBlackHoleSequence(status);
     return;
   } else if (blackHoleConnectionId !== null) {
@@ -959,11 +935,6 @@ function syncGateStatus(status) {
     manualOpenDuringIncoming = false;
   }
 
-  if (targetClosed && connectionActive) {
-    playIrisImpact(status);
-  } else if (!connectionActive) {
-    lastImpactConnectionId = null;
-  }
 }
 
 async function pollGateStatus() {
