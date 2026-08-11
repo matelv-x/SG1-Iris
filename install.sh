@@ -202,11 +202,11 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260808-manual-close-crossfade" />
+    <link rel="stylesheet" href="css/iris.css?v=20260811-manual-audio-switch" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
-    <script type="module" src="js/iris.js?v=20260808-manual-close-crossfade"></script>
+    <script type="module" src="js/iris.js?v=20260811-manual-audio-switch"></script>
     {JS_END}"""
 
 def remove_existing_hooks(text: str) -> str:

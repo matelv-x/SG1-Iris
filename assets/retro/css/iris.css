@@ -15,11 +15,28 @@ body.crt .iris-mechanism {
 }
 
 .navigation-menu .a-iris-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35em;
   white-space: nowrap;
 }
 
 .navigation-menu .a-iris-toggle.iris-closed {
   color: var(--glyph-color);
+}
+
+.navigation-menu .iris-manual-audio-switch {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.58em;
+  line-height: 1;
+  opacity: 0.85;
+  padding: 0.18em 0.45em;
+  text-transform: uppercase;
+}
+
+.navigation-menu .iris-manual-audio-switch.iris-manual-audio-off {
+  opacity: 0.45;
 }
 
 @media (prefers-reduced-motion: reduce) {

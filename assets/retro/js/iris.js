@@ -16,6 +16,7 @@ const IRIS_MANUAL_AUDIO_CROSSFADE_SECONDS = 0.08;
 const STATUS_POLL_INTERVAL_MS = 1000;
 const STATUS_RETRY_INTERVAL_MS = 3500;
 const AUTO_CLOSED_STORAGE_KEY = 'sg1IrisAutoClosed';
+const MANUAL_AUDIO_STORAGE_KEY = 'sg1IrisManualAudioEnabled';
 const BLACK_HOLE_GATE_NAME = 'P3W-451';
 // The dedicated clip lasts 7.871565 seconds. Starting it at 35 seconds lets
 // it finish around 42.87 seconds and leaves about 2.13 seconds before closure.
@@ -42,6 +43,9 @@ let progress = 0;
 let targetClosed = false;
 let animationFrame = null;
 let controlButton = null;
+let manualAudioSwitch = null;
+let manualAudioEnabled =
+  localStorage.getItem(MANUAL_AUDIO_STORAGE_KEY) !== '0';
 let autoClosed = localStorage.getItem(AUTO_CLOSED_STORAGE_KEY) === '1';
 let manualOpenDuringIncoming = false;
 let statusPolling = false;
@@ -484,11 +488,36 @@ function draw() {
 function updateControlButton() {
   if (!controlButton) return;
   const label = targetClosed ? 'OPEN IRIS' : 'CLOSE IRIS';
-  controlButton.textContent = label;
+  const labelNode = controlButton.querySelector('.iris-toggle-label');
+  if (labelNode) {
+    labelNode.textContent = label;
+  } else {
+    controlButton.textContent = label;
+  }
   controlButton.title = `${label} (Ctrl+I)`;
   controlButton.setAttribute('aria-label', controlButton.title);
   controlButton.setAttribute('aria-pressed', String(targetClosed));
   controlButton.classList.toggle('iris-closed', targetClosed);
+  updateManualAudioSwitch();
+}
+
+function updateManualAudioSwitch() {
+  if (!manualAudioSwitch) return;
+  manualAudioSwitch.textContent = manualAudioEnabled ? 'AUDIO ON' : 'AUDIO OFF';
+  manualAudioSwitch.title = 'Manual Iris audio after Close Iris';
+  manualAudioSwitch.setAttribute('aria-checked', String(manualAudioEnabled));
+  manualAudioSwitch.classList.toggle('iris-manual-audio-off', !manualAudioEnabled);
+}
+
+function setManualAudioEnabled(enabled) {
+  manualAudioEnabled = Boolean(enabled);
+  localStorage.setItem(MANUAL_AUDIO_STORAGE_KEY, manualAudioEnabled ? '1' : '0');
+  if (!manualAudioEnabled) {
+    stopManualCloseAudio();
+    stopManualClosedIdleLoop();
+    releaseManualCloseAudioLock(false);
+  }
+  updateManualAudioSwitch();
 }
 
 function installControlButton() {
@@ -500,10 +529,28 @@ function installControlButton() {
     controlButton = document.createElement('a');
     controlButton.href = '#';
     controlButton.className = 'a-iris-toggle';
+    controlButton.innerHTML = '<span class="iris-toggle-label"></span>';
     controlButton.addEventListener('click', event => {
       event.preventDefault();
       toggle();
     });
+
+    manualAudioSwitch = document.createElement('span');
+    manualAudioSwitch.className = 'iris-manual-audio-switch';
+    manualAudioSwitch.setAttribute('role', 'switch');
+    manualAudioSwitch.setAttribute('tabindex', '0');
+    manualAudioSwitch.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      setManualAudioEnabled(!manualAudioEnabled);
+    });
+    manualAudioSwitch.addEventListener('keydown', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setManualAudioEnabled(!manualAudioEnabled);
+    });
+    controlButton.append(manualAudioSwitch);
 
     const admin = menu.querySelector('.dropdown');
     if (admin) {
@@ -511,6 +558,33 @@ function installControlButton() {
     } else {
       menu.append(controlButton);
     }
+  }
+
+  if (!controlButton.querySelector('.iris-toggle-label')) {
+    controlButton.textContent = '';
+    const labelNode = document.createElement('span');
+    labelNode.className = 'iris-toggle-label';
+    controlButton.append(labelNode);
+  }
+
+  manualAudioSwitch = controlButton.querySelector('.iris-manual-audio-switch');
+  if (!manualAudioSwitch) {
+    manualAudioSwitch = document.createElement('span');
+    manualAudioSwitch.className = 'iris-manual-audio-switch';
+    manualAudioSwitch.setAttribute('role', 'switch');
+    manualAudioSwitch.setAttribute('tabindex', '0');
+    manualAudioSwitch.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      setManualAudioEnabled(!manualAudioEnabled);
+    });
+    manualAudioSwitch.addEventListener('keydown', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setManualAudioEnabled(!manualAudioEnabled);
+    });
+    controlButton.append(manualAudioSwitch);
   }
 
   updateControlButton();
@@ -525,7 +599,8 @@ function setClosed(closed, options = {}) {
   const start = progress;
   const end = targetClosed ? 1 : 0;
   const distance = Math.abs(end - start);
-  const manualClose = targetClosed && options.manual === true;
+  const manualClose =
+    targetClosed && options.manual === true && manualAudioEnabled;
   if (distance < 0.001) {
     progress = end;
     draw();
@@ -754,7 +829,15 @@ function stopManualClosedIdleLoop() {
   manualClosedIdleLoopStarted = false;
 }
 
+function stopManualCloseAudio() {
+  if (!manualCloseAudio) return;
+  manualCloseAudio.pause();
+  manualCloseAudio.currentTime = 0;
+  manualCloseAudio = null;
+}
+
 function prepareManualClosedIdleLoop() {
+  if (!manualAudioEnabled) return null;
   if (manualClosedIdleLoopAudio) return manualClosedIdleLoopAudio;
   manualClosedIdleLoopAudio = new Audio(
     getIrisSoundBase() + IRIS_AUDIO_FILES.manualClosedIdleLoop,
@@ -767,6 +850,7 @@ function prepareManualClosedIdleLoop() {
 }
 
 function prepareManualCloseAudio() {
+  if (!manualAudioEnabled) return null;
   if (manualCloseAudio) return manualCloseAudio;
   manualCloseAudio = new Audio(getIrisSoundBase() + IRIS_AUDIO_FILES.manualClose);
   manualCloseAudio.preload = 'auto';
@@ -776,10 +860,12 @@ function prepareManualCloseAudio() {
 }
 
 function playManualClosedIdleLoop() {
+  if (!manualAudioEnabled) return;
   if (!canPlayManualClosedIdleLoop()) return;
   if (manualClosedIdleLoopStarted) return;
   manualClosedIdleLoopStarted = true;
   const audio = prepareManualClosedIdleLoop();
+  if (!audio) return;
   audio.currentTime = 0;
   if (manualClosedIdleLoopAudio && !manualClosedIdleLoopAudio.paused) return;
   audio.play().catch(error => {
@@ -824,12 +910,14 @@ function playAudioFile(file, existingAudio = null) {
 }
 
 function playManualCloseAudio() {
+  if (!manualAudioEnabled) return;
   if (manualCloseAudioLocked) return;
   stopManualClosedIdleLoop();
   manualCloseAudioLocked = true;
   setManualIrisAudioBlocked(true);
   prepareManualClosedIdleLoop();
   const audio = prepareManualCloseAudio();
+  if (!audio) return;
   audio.currentTime = 0;
   const startLoopNearEnd = () => {
     if (!manualCloseAudio || !Number.isFinite(audio.duration)) return;
