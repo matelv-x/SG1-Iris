@@ -58,6 +58,27 @@ After installation, refresh the Retro page without cache. Use the
 `CLOSE IRIS` / `OPEN IRIS` control in the Retro navigation menu, or press
 `Ctrl+I`.
 
+## Iris audio switch
+
+![Iris audio on](docs/iris-audio-switch-on.png)
+
+**AUDIO ON**
+
+Manual Close Iris plays the extra audio chain after the Iris closes:
+`it's gonna hold.mp3`, then `Iris.mp3` loops while the Iris stays closed and
+the gate is idle.
+
+![Iris audio off](docs/iris-audio-switch-off.png)
+
+**AUDIO OFF**
+
+Disables only the extra manual Iris audio. Normal Iris open/close sounds still
+work.
+
+Click or tap the small switch to toggle audio. Hover the switch, then press
+`Enter` or `Space` to toggle it. `Ctrl+I` still only opens/closes the Iris.
+The setting is saved in the browser.
+
 Quick browser test:
 
 ```text
