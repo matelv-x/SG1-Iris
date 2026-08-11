@@ -520,6 +520,25 @@ function setManualAudioEnabled(enabled) {
   updateManualAudioSwitch();
 }
 
+function installManualAudioSwitchHandlers(switchElement) {
+  if (!switchElement || switchElement.dataset.irisAudioSwitchReady === '1') return;
+  switchElement.dataset.irisAudioSwitchReady = '1';
+  switchElement.addEventListener('mouseenter', () => {
+    switchElement.focus({preventScroll: true});
+  });
+  switchElement.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    setManualAudioEnabled(!manualAudioEnabled);
+  });
+  switchElement.addEventListener('keydown', event => {
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    event.preventDefault();
+    event.stopPropagation();
+    setManualAudioEnabled(!manualAudioEnabled);
+  });
+}
+
 function installControlButton() {
   const menu = document.querySelector('.navigation-menu');
   if (!menu) return false;
@@ -539,17 +558,7 @@ function installControlButton() {
     manualAudioSwitch.className = 'iris-manual-audio-switch';
     manualAudioSwitch.setAttribute('role', 'switch');
     manualAudioSwitch.setAttribute('tabindex', '0');
-    manualAudioSwitch.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      setManualAudioEnabled(!manualAudioEnabled);
-    });
-    manualAudioSwitch.addEventListener('keydown', event => {
-      if (event.key !== ' ' && event.key !== 'Enter') return;
-      event.preventDefault();
-      event.stopPropagation();
-      setManualAudioEnabled(!manualAudioEnabled);
-    });
+    installManualAudioSwitchHandlers(manualAudioSwitch);
     controlButton.append(manualAudioSwitch);
 
     const admin = menu.querySelector('.dropdown');
@@ -573,19 +582,9 @@ function installControlButton() {
     manualAudioSwitch.className = 'iris-manual-audio-switch';
     manualAudioSwitch.setAttribute('role', 'switch');
     manualAudioSwitch.setAttribute('tabindex', '0');
-    manualAudioSwitch.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      setManualAudioEnabled(!manualAudioEnabled);
-    });
-    manualAudioSwitch.addEventListener('keydown', event => {
-      if (event.key !== ' ' && event.key !== 'Enter') return;
-      event.preventDefault();
-      event.stopPropagation();
-      setManualAudioEnabled(!manualAudioEnabled);
-    });
     controlButton.append(manualAudioSwitch);
   }
+  installManualAudioSwitchHandlers(manualAudioSwitch);
 
   updateControlButton();
   return true;
