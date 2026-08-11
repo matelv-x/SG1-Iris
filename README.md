@@ -64,9 +64,7 @@ After installation, refresh the Retro page without cache. Use the
 
 **AUDIO ON**
 
-Manual Close Iris plays the extra audio chain after the Iris closes:
-`it's gonna hold.mp3`, then `Iris.mp3` loops while the Iris stays closed and
-the gate is idle.
+Manual Close Iris plays the open/close sounds and the extra audio chain after the Iris closes.
 
 ![Iris audio off](docs/iris-audio-switch-off.png)
 
