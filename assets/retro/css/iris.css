@@ -8,6 +8,14 @@
   text-shadow: none !important;
   top: clamp(-100px, 12.9vmin, 129px);
   width: clamp(-100px, 45.1vmin, 451px);
+  z-index: 2;
+}
+
+/* The Iris covers portal media, but never the original Retro status UI. */
+.border > .timer-wrapper,
+.border > .gdo-wrapper,
+.border > .info-box {
+  z-index: 3;
 }
 
 body.crt .iris-mechanism {

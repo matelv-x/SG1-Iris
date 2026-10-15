@@ -202,7 +202,7 @@ INCOMING_START = "// SG1 IRIS INCOMING AUTO-CLOSE START"
 INCOMING_END = "// SG1 IRIS INCOMING AUTO-CLOSE END"
 
 CSS_HOOK = f"""{CSS_START}
-    <link rel="stylesheet" href="css/iris.css?v=20260811-manual-audio-hover-focus" />
+    <link rel="stylesheet" href="css/iris.css?v=20261014-retro-layer-order" />
     {CSS_END}"""
 
 JS_HOOK = f"""{JS_START}
