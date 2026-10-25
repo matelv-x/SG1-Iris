@@ -1,0 +1,11 @@
+{
+  "maintenance_contract": 1,
+  "id": "sg1-iris",
+  "name": "SG1 Iris",
+  "repository": "matelv-x/SG1-Iris",
+  "platforms": ["v4"],
+  "detect": {"all": [{"path": "web/retro/js/iris.js"}, {"path": "web/retro/css/iris.css"}]},
+  "install": {"argv": ["./install.sh", "--target", "{sg1_root}"], "timeout": 900},
+  "uninstall": {"argv": ["./restore.sh", "--target", "{sg1_root}"], "timeout": 900},
+  "restart_required": true
+}
