@@ -1,5 +1,6 @@
 {
   "maintenance_contract": 1,
+  "uninstall_contract": 2,
   "id": "sg1-iris",
   "name": "SG1 Iris",
   "repository": "matelv-x/SG1-Iris",
